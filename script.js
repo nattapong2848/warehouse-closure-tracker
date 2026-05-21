@@ -1,6 +1,6 @@
 const CONFIG = {
   spreadsheetId: localStorage.getItem('spx_sheet_id') || '1sV6GP5swsuPnB8biAl7WfadzK7ISVKizYXCsIq4fsSA',
-  apiUrl: localStorage.getItem('spx_api_url') || ''
+  apiUrl: localStorage.getItem('spx_api_url') || 'https://script.google.com/macros/s/AKfycbw6IT1EP4h_XU1u3gMYaeH8kHr_r1n_q1mCB7-Yad51tHHt9WNefYUbQYEndooHT4LTCg/exec'
 };
 
 const sampleTasks = [
