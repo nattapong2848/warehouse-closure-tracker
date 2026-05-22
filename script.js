@@ -195,17 +195,47 @@ function calendar(){
   renderSelectedDay(state.selectedCalendarDate||todayISO());
 }
 function getCalendarItems(){
-  const calendarItems=state.calendar.map(e=>({source:"calendar",key:"cal:"+e.eventId,id:e.eventId,taskId:e.taskId,warehouseId:e.warehouseId,title:e.eventTitle,type:e.eventType||"กำหนดส่งงาน",startDate:e.startDate,dueDate:e.dueDate,assignee:e.assignee,reminderDays:e.reminderDays,calendarStatus:e.calendarStatus,notes:e.notes}));
-  const taskItems=state.tasks.filter(t=>t.dueDate).map(t=>({source:"task",key:"task:"+t.taskId,id:t.taskId,taskId:t.taskId,warehouseId:t.warehouseId,title:t.taskName,type:"Task Due",startDate:t.createdDate,dueDate:t.dueDate,assignee:t.assignee,reminderDays:"",calendarStatus:t.status,priority:t.priority,notes:t.notes,progress:t.progress,status:t.status}));
+  // Calendar fix: Apps Script may return dates as "YYYY-MM-DD HH:mm:ss".
+  // Normalize every date to "YYYY-MM-DD" so month grid keys match correctly.
+  const calendarItems=state.calendar.map(e=>{
+    const startDate=normalizeDate(e.startDate);
+    const dueDate=normalizeDate(e.dueDate) || startDate;
+    return {source:"calendar",key:"cal:"+e.eventId,id:e.eventId,taskId:e.taskId,warehouseId:e.warehouseId,title:e.eventTitle,type:e.eventType||"กำหนดส่งงาน",startDate,dueDate,assignee:e.assignee,reminderDays:e.reminderDays,calendarStatus:e.calendarStatus,notes:e.notes};
+  }).filter(e=>e.dueDate);
+  const taskItems=state.tasks.map(t=>{
+    const startDate=normalizeDate(t.createdDate);
+    const dueDate=normalizeDate(t.dueDate);
+    return {source:"task",key:"task:"+t.taskId,id:t.taskId,taskId:t.taskId,warehouseId:t.warehouseId,title:t.taskName,type:"Task Due",startDate,dueDate,assignee:t.assignee,reminderDays:"",calendarStatus:t.status,priority:t.priority,notes:t.notes,progress:t.progress,status:t.status};
+  }).filter(t=>t.dueDate);
   return [...calendarItems,...taskItems];
 }
-function countCalendarByDay(items){return items.reduce((o,x)=>{if(!x.dueDate)return o;(o[x.dueDate]=o[x.dueDate]||[]).push(x);return o;},{});}
+function countCalendarByDay(items){return items.reduce((o,x)=>{const d=normalizeDate(x.dueDate||x.startDate);if(!d)return o;(o[d]=o[d]||[]).push(x);return o;},{});}
+function normalizeDate(value){
+  if(!value)return "";
+  if(value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,10);
+  const raw=String(value).trim();
+  if(!raw)return "";
+  const iso=raw.match(/\d{4}-\d{2}-\d{2}/);
+  if(iso)return iso[0];
+  const dmy=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if(dmy){
+    const [,dd,mm,yyyy]=dmy;
+    return `${yyyy}-${String(mm).padStart(2,"0")}-${String(dd).padStart(2,"0")}`;
+  }
+  const parsed=new Date(raw);
+  return isNaN(parsed)?"":parsed.toISOString().slice(0,10);
+}
 function selectCalendarDate(date){state.selectedCalendarDate=date; renderSelectedDay(date);}
 function renderSelectedDay(date){
   const title=$("#selectedDayTitle"), box=$("#selectedDayList"); if(!box)return;
-  title.textContent=`รายการวันที่ ${date||"-"}`;
+  const selected=normalizeDate(date);
+  title.textContent=`รายการวันที่ ${selected||"-"}`;
   const wh=$("#calendarWhFilter")?.value||"";
-  const list=getCalendarItems().filter(x=>x.dueDate===date && (!wh||x.warehouseId===wh));
+  const type=$("#calendarTypeFilter")?.value||"";
+  const urgency=$("#calendarUrgencyFilter")?.value||"";
+  let list=getCalendarItems().filter(x=>normalizeDate(x.dueDate)===selected && (!wh||x.warehouseId===wh));
+  if(type)list=list.filter(x=>x.type===type);
+  if(urgency)list=list.filter(x=>calendarUrgency(x)===urgency || (urgency==="week"&&withinDays(x.dueDate,7)));
   box.innerHTML=list.map(x=>calendarItemCard(x)).join("")||empty("ไม่มีงานหรือแผนงานในวันนี้");
 }
 function calendarItemCard(x){
@@ -222,10 +252,10 @@ function openCalendarItem(key){
   btn.onclick=()=>{ $("#calendarDetailDialog").close(); openStatus(task.taskId); };
   $("#calendarDetailDialog").showModal();
 }
-function inMonth(date,month){return date && String(date).slice(0,7)===month;}
-function withinDays(date,days){if(!date)return false;const diff=(new Date(date+"T23:59:59")-new Date())/86400000;return diff>=0&&diff<=days;}
-function calendarUrgency(x){if(!x.dueDate)return "";if(x.source==="task"&&x.status==="ปิดแล้ว")return "done";const diff=(new Date(x.dueDate+"T23:59:59")-new Date())/86400000;if(diff<0)return "overdue";if(diff<=0.99)return "today";if(diff<=3)return "soon";return "normal";}
-function todayISO(){return new Date().toISOString().slice(0,10);}
+function inMonth(date,month){const d=normalizeDate(date);return d && d.slice(0,7)===month;}
+function withinDays(date,days){const d=normalizeDate(date);if(!d)return false;const diff=(new Date(d+"T23:59:59")-new Date())/86400000;return diff>=0&&diff<=days;}
+function calendarUrgency(x){const d=normalizeDate(x.dueDate||x.startDate);if(!d)return "";if(x.source==="task"&&x.status==="ปิดแล้ว")return "done";const diff=(new Date(d+"T23:59:59")-new Date())/86400000;if(diff<0)return "overdue";if(diff<=0.99)return "today";if(diff<=3)return "soon";return "normal";}
+function todayISO(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok"}).format(new Date());}
 function shortTitle(t){t=String(t||"");return t.length>18?t.slice(0,18)+"…":t;}
 
 function logs(){ $("#logTable").innerHTML=state.activityLog.length?`<table><thead><tr><th>เวลา</th><th>Action</th><th>Record</th><th>คลัง</th><th>User</th><th>รายละเอียด</th></tr></thead><tbody>`+state.activityLog.slice().reverse().map(l=>`<tr><td>${l.timestamp||""}</td><td>${l.action||""}</td><td>${l.recordId||""}</td><td>${l.warehouseId||""}</td><td>${l.user||""}</td><td>${esc(l.details||"")}</td></tr>`).join("")+`</tbody></table>`:empty("ยังไม่มี Log");}
@@ -253,7 +283,27 @@ function bindForms(){
   $("#saveStatus").onclick=saveStatus; loadMemory(); $("#taskForm").onchange=saveMemory; $("#taskForm").oninput=saveMemory;
 }
 function shiftCalendarMonth(delta){const [y,m]=state.calendarMonth.split("-").map(Number);const d=new Date(y,m-1+delta,1);state.calendarMonth=d.toISOString().slice(0,7);if($("#calendarMonth"))$("#calendarMonth").value=state.calendarMonth;calendar();}
-async function submit(e,action,msg,remember=false){e.preventDefault(); const r=await apiPost(action,obj(e.target)); if(r.success){toast(msg); e.target.reset(); if(remember)loadMemory(); await loadAll();}else toast(r.message||"บันทึกไม่สำเร็จ");}
+async function submit(e,action,msg,remember=false){
+  e.preventDefault();
+  const payload=obj(e.target);
+  const focusCalendarDate=action==="addCalendarEvent" ? normalizeDate(payload.dueDate||payload.startDate) : "";
+  const r=await apiPost(action,payload);
+  if(r.success){
+    toast(msg);
+    e.target.reset();
+    if(remember)loadMemory();
+    if(focusCalendarDate){
+      state.calendarMonth=focusCalendarDate.slice(0,7);
+      state.selectedCalendarDate=focusCalendarDate;
+      if($("#calendarMonth"))$("#calendarMonth").value=state.calendarMonth;
+    }
+    await loadAll();
+    if(action==="addCalendarEvent"){
+      show("calendar");
+      calendar();
+    }
+  }else toast(r.message||"บันทึกไม่สำเร็จ");
+}
 function openStatus(id){const t=state.tasks.find(x=>x.taskId===id); if(!t)return; const f=$("#statusForm"); f.taskId.value=id; f.status.value=t.status; f.progress.value=t.progress||0; f.user.value=localStorage.getItem("spx_user")||""; f.notes.value=""; $("#statusInfo").innerHTML=`<b>${t.taskId}</b> · ${esc(t.taskName)}<br><small>สถานะเดิม: ${t.status}</small>`; $("#statusDialog").showModal();}
 async function saveStatus(e){e.preventDefault(); const p=obj($("#statusForm")); localStorage.setItem("spx_user",p.user||""); const r=await apiPost("updateStatus",p); if(r.success){toast("อัปเดตสถานะแล้ว");$("#statusDialog").close();await loadAll();}else toast(r.message||"อัปเดตไม่สำเร็จ");}
 function obj(form){return Object.fromEntries(new FormData(form).entries());}
