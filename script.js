@@ -53,11 +53,16 @@ function bindButtons(){
   $("#refreshBtn")?.addEventListener("click", loadAllData);
   $("#saveSettingsBtn")?.addEventListener("click", saveSettings);
   $("#testApiBtn")?.addEventListener("click", testApi);
+  $("#settingCategorySelect")?.addEventListener("change", renderSettingOptionList);
+  $("#addSettingOptionBtn")?.addEventListener("click", addSettingOptionFromUI);
   $("#copyReportBtn")?.addEventListener("click", () => navigator.clipboard.writeText($("#dailyReport").textContent).then(()=>toast("คัดลอกรายงานแล้ว")));
   $("#prevMonth")?.addEventListener("click", () => changeMonth(-1));
   $("#nextMonth")?.addEventListener("click", () => changeMonth(1));
   $("#calendarMonth")?.addEventListener("change", e => { state.calendarCursor=e.target.value; renderCalendar(); });
   $("#createChecklistBtn")?.addEventListener("click", createChecklistForWarehouse);
+  $("#checklistCaseFilter")?.addEventListener("change", renderChecklist);
+  $("#newChecklistTemplateBtn")?.addEventListener("click", openNewChecklistTemplateForm);
+  $("#cancelChecklistTemplateBtn")?.addEventListener("click", closeChecklistTemplateForm);
   $("#profileSearch")?.addEventListener("input", renderProfiles);
   $("#warehouseStatusSearch")?.addEventListener("input", renderWarehouseStatus);
   $("#warehouseStatusFilter")?.addEventListener("change", renderWarehouseStatus);
@@ -75,6 +80,7 @@ function bindForms(){
   $("#documentForm")?.addEventListener("submit", submitDocument);
   $("#calendarForm")?.addEventListener("submit", submitCalendarEvent);
   $("#issueForm")?.addEventListener("submit", submitIssue);
+  $("#checklistTemplateForm")?.addEventListener("submit", submitChecklistTemplate);
 }
 
 function startClock(){
@@ -397,22 +403,240 @@ function changeMonth(n){ const [y,m]=state.calendarCursor.split("-").map(Number)
 function openEventDetail(id,taskId){ if(taskId) quickStatus(taskId); }
 
 function renderIssues(){ $("#issuesList").innerHTML=state.issues.map(i=>`<div class="mini-card"><div><b>${i["Issue Title"]}</b><small>${whName(i["Warehouse ID"])} · ${i.Status} · ${i.Priority||"-"}</small></div><button class="tiny-btn red" onclick="deleteRecord('Issues','${i["Issue ID"]}')">ลบ</button></div>`).join("") || empty("ยังไม่มี Issue"); }
-function renderChecklist(){ $("#checklistTemplates").innerHTML=state.checklistTemplates.map(t=>`<div class="template-card"><h4>${t["Task Name"]}</h4><small>${t.Phase} · ${t.Priority}</small><p>${t.Notes||""}</p></div>`).join(""); }
+function renderChecklist(){
+  const caseFilter = $("#checklistCaseFilter")?.value || "";
+  const templates = state.checklistTemplates.filter(t => {
+    const active = String(t.Active || "TRUE").toUpperCase() !== "FALSE";
+    const matchCase = !caseFilter || (t["Case Type"] || "Standard") === caseFilter;
+    return active && matchCase;
+  });
 
-function renderDailyReport(){
-  const follow=dueSoonTasks(state.tasks), done=state.tasks.filter(isClosed), issues=state.issues.filter(i=>i.Status!=="Closed");
-  $("#dailyReport").textContent = `รายงานงานปิดคลังสินค้า SPX\nวันที่ ${todayISO()}\n\nภาพรวม\n- คลังทั้งหมด: ${state.warehouses.length}\n- งานทั้งหมด: ${state.tasks.length}\n- งานปิดแล้ว: ${done.length}\n- งานที่ต้องตาม: ${follow.length}\n- Issue เปิดอยู่: ${issues.length}\n- ความคืบหน้าเฉลี่ย: ${avgProgress(state.tasks)}%\n\nงานที่ต้องตามด่วน\n${follow.map(t=>`- ${t["Task ID"]} ${t["Task Name"]} | ${whName(t["Warehouse ID"])} | ${t.Status} | Due ${t["Due Date"]||"-"}`).join("\n") || "- ไม่มี"}\n\nRisks / Issues\n${issues.map(i=>`- ${i["Issue ID"]} ${i["Issue Title"]} | ${whName(i["Warehouse ID"])} | ${i.Priority||"-"}`).join("\n") || "- ไม่มี"}`;
+  $("#checklistTemplates").innerHTML = templates.map(t => {
+    const tid = t["Template ID"] || "";
+    return `<div class="template-card checklist-template-card">
+      <div class="template-top">
+        <span class="badge">${t["Case Type"] || "Standard"}</span>
+        <span class="badge ${t.Active === "FALSE" ? "danger" : "done"}">${t.Active === "FALSE" ? "Inactive" : "Active"}</span>
+      </div>
+      <h4>${t["Task Name"] || "-"}</h4>
+      <small>${t.Phase || "-"} · ${t.Priority || "-"} · Due +${t["Default Due Offset Days"] || 0} วัน</small>
+      <p>${t.Notes || ""}</p>
+      <div class="template-meta">
+        <span>👤 ${t["Default Assignee"] || "ไม่ระบุ"}</span>
+        <span>📎 ${t["Document Required"] || "ไม่บังคับเอกสาร"}</span>
+      </div>
+      <div class="button-row">
+        <button class="tiny-btn orange" onclick="editChecklistTemplate('${escapeAttr(tid)}')">แก้ไข</button>
+        <button class="tiny-btn" onclick="duplicateChecklistTemplate('${escapeAttr(tid)}')">ทำสำเนา</button>
+        <button class="tiny-btn red" onclick="deleteChecklistTemplate('${escapeAttr(tid)}')">ลบ</button>
+      </div>
+    </div>`;
+  }).join("") || empty("ยังไม่มี Checklist Template ในเคสนี้");
+}
+
+function openNewChecklistTemplateForm(){
+  const form = $("#checklistTemplateForm");
+  form.reset();
+  form.elements.templateId.value = "";
+  $("#checklistTemplateFormTitle").textContent = "เพิ่ม Checklist Template";
+  form.classList.remove("hidden");
+  form.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function closeChecklistTemplateForm(){
+  $("#checklistTemplateForm").classList.add("hidden");
+}
+
+function editChecklistTemplate(templateId){
+  const t = state.checklistTemplates.find(x => x["Template ID"] === templateId);
+  if(!t) return toast("ไม่พบ Template");
+
+  const form = $("#checklistTemplateForm");
+  form.elements.templateId.value = t["Template ID"] || "";
+  form.elements.caseType.value = t["Case Type"] || "Standard";
+  form.elements.phase.value = t.Phase || "";
+  form.elements.taskName.value = t["Task Name"] || "";
+  form.elements.defaultAssignee.value = t["Default Assignee"] || "";
+  form.elements.priority.value = t.Priority || "";
+  form.elements.defaultStatus.value = t["Default Status"] || "To Do";
+  form.elements.dueOffset.value = t["Default Due Offset Days"] || 7;
+  form.elements.documentRequired.value = t["Document Required"] || "";
+  form.elements.active.value = String(t.Active || "TRUE").toUpperCase() === "FALSE" ? "FALSE" : "TRUE";
+  form.elements.notes.value = t.Notes || "";
+
+  $("#checklistTemplateFormTitle").textContent = "แก้ไข Checklist Template";
+  form.classList.remove("hidden");
+  form.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function duplicateChecklistTemplate(templateId){
+  const t = state.checklistTemplates.find(x => x["Template ID"] === templateId);
+  if(!t) return toast("ไม่พบ Template");
+  openNewChecklistTemplateForm();
+  const form = $("#checklistTemplateForm");
+  form.elements.caseType.value = t["Case Type"] || "Standard";
+  form.elements.phase.value = t.Phase || "";
+  form.elements.taskName.value = (t["Task Name"] || "") + " (Copy)";
+  form.elements.defaultAssignee.value = t["Default Assignee"] || "";
+  form.elements.priority.value = t.Priority || "";
+  form.elements.defaultStatus.value = t["Default Status"] || "To Do";
+  form.elements.dueOffset.value = t["Default Due Offset Days"] || 7;
+  form.elements.documentRequired.value = t["Document Required"] || "";
+  form.elements.active.value = "TRUE";
+  form.elements.notes.value = t.Notes || "";
+}
+
+async function deleteChecklistTemplate(templateId){
+  if(!confirm("ลบ Checklist Template นี้?")) return;
+  try{
+    await api("deleteChecklistTemplate", { templateId, user: CONFIG.defaultUser });
+    toast("ลบ Template แล้ว");
+    await loadAllData();
+  }catch(err){
+    console.error(err);
+    toast("ลบ Template ไม่สำเร็จ: " + err.message);
+  }
+}
+
+async function submitChecklistTemplate(e){
+  e.preventDefault();
+  const d = dataFromForm(e.target);
+
+  const payload = {
+    "Template ID": d.templateId || uid("TPL"),
+    "Phase": d.phase,
+    "Task Name": d.taskName,
+    "Default Assignee": d.defaultAssignee,
+    "Priority": d.priority,
+    "Default Status": d.defaultStatus,
+    "Default Due Offset Days": d.dueOffset,
+    "Document Required": d.documentRequired,
+    "Notes": d.notes,
+    "Case Type": d.caseType,
+    "Active": d.active
+  };
+
+  try{
+    await api(d.templateId ? "updateChecklistTemplate" : "addChecklistTemplate", { template: payload, user: CONFIG.defaultUser });
+    toast("บันทึก Checklist Template แล้ว");
+    closeChecklistTemplateForm();
+    await loadAllData();
+  }catch(err){
+    console.error(err);
+    toast("บันทึก Template ไม่สำเร็จ: " + err.message);
+  }
 }
 function renderActivity(){ $("#activityTable").innerHTML=table(["Time","Action","Sheet","Record","Warehouse","User","Details"], state.activity.slice().reverse().map(a=>[a.Timestamp||"",a.Action||"",a.Sheet||"",a["Record ID"]||"",a["Warehouse ID"]||"",a.User||"",a.Details||""])); }
 function renderTrash(){ $("#trashTable").innerHTML=table(["Time","Source","Record","Warehouse","Deleted By","Reason"], state.trash.slice().reverse().map(a=>[a.Timestamp||"",a["Source Sheet"]||"",a["Record ID"]||"",a["Warehouse ID"]||"",a["Deleted By"]||"",a.Reason||""])); }
-function renderSettingsGrid(){ $("#settingsGrid").innerHTML=Object.entries(state.settings).map(([k,arr])=>`<div class="template-card"><h4>${k}</h4><p>${arr.join("<br>")}</p></div>`).join(""); }
+function renderSettingsGrid(){
+  const keys = getSettingKeys();
 
-function renderDropdowns(){
-  $$("[data-setting]").forEach(sel=>fillSelect(sel,state.settings[sel.dataset.setting]||[], sel.dataset.setting));
-  const whOpts=state.warehouses.map(w=>({value:w["Warehouse ID"],label:`${w["Warehouse Name"]} (${w["Warehouse ID"]})`}));
-  ["taskWarehouseSelect","docWarehouseSelect","calWarehouseSelect","issueWarehouseSelect","checklistWarehouseSelect"].forEach(id=>fillSelectObj($("#"+id),whOpts,"เลือกคลัง"));
-  fillSelectObj($("#taskWarehouseFilter"),[{value:"",label:"ทุกคลัง"},...whOpts],"ทุกคลัง",false);
-  fillSelect($("#taskStatusFilter"),["",...(state.settings["Task Status"]||[])],"ทุกสถานะ",false);
+  const catSelect = $("#settingCategorySelect");
+  if (catSelect) {
+    const old = catSelect.value;
+    catSelect.innerHTML = keys.map(k => `<option value="${k}">${settingLabel(k)}</option>`).join("");
+    catSelect.value = keys.includes(old) ? old : (keys[0] || "");
+  }
+
+  $("#settingsGrid").innerHTML = keys.map(k => {
+    const arr = state.settings[k] || [];
+    return `<div class="template-card setting-category-card" onclick="selectSettingCategory('${escapeAttr(k)}')">
+      <div class="setting-card-head">
+        <h4>${settingLabel(k)}</h4>
+        <span>${arr.length} รายการ</span>
+      </div>
+      <p>${arr.slice(0, 8).map(v => `<b>${v}</b>`).join("<br>") || "ยังไม่มีข้อมูล"}</p>
+      ${arr.length > 8 ? `<small>+${arr.length - 8} รายการ</small>` : ""}
+    </div>`;
+  }).join("");
+
+  renderSettingOptionList();
+}
+
+function getSettingKeys(){
+  const preferred = ["Task Status","Priority","Warehouse Status","Phase","Document Type","Document Status","Event Type","Calendar Status"];
+  const existing = Object.keys(state.settings || {});
+  return [...new Set([...preferred, ...existing])].filter(Boolean);
+}
+
+function settingLabel(key){
+  const labels = {
+    "Task Status": "สถานะงาน",
+    "Priority": "ความสำคัญ",
+    "Warehouse Status": "สถานะคลัง",
+    "Phase": "เฟสงาน",
+    "Document Type": "ประเภทเอกสาร",
+    "Document Status": "สถานะเอกสาร",
+    "Event Type": "ประเภทแผนงาน",
+    "Calendar Status": "สถานะปฏิทิน"
+  };
+  return labels[key] || key;
+}
+
+function selectSettingCategory(key){
+  const sel = $("#settingCategorySelect");
+  if(sel){
+    sel.value = key;
+    renderSettingOptionList();
+    $(".settings-active-box")?.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+}
+
+function renderSettingOptionList(){
+  const key = $("#settingCategorySelect")?.value || getSettingKeys()[0];
+  const list = state.settings[key] || [];
+  const title = $("#settingActiveTitle");
+  if(title) title.textContent = `${settingLabel(key)} (${key})`;
+
+  const box = $("#settingOptionList");
+  if(!box) return;
+
+  box.innerHTML = list.length ? list.map(v => `
+    <div class="setting-option-pill">
+      <span>${v}</span>
+      <button type="button" onclick="deleteSettingOptionFromUI('${escapeAttr(key)}','${escapeAttr(v)}')">ลบ</button>
+    </div>
+  `).join("") : `<div class="empty-doc-box">ยังไม่มีตัวเลือกในหมวดนี้</div>`;
+}
+
+async function addSettingOptionFromUI(){
+  const category = $("#settingCategorySelect")?.value;
+  const value = ($("#settingNewValueInput")?.value || "").trim();
+
+  if(!category) return toast("กรุณาเลือกหมวด Settings");
+  if(!value) return toast("กรุณากรอกค่าที่ต้องการเพิ่ม");
+
+  try{
+    await api("addSettingOption", { category, value, user: CONFIG.defaultUser });
+    $("#settingNewValueInput").value = "";
+    toast("เพิ่มตัวเลือกแล้ว");
+    await loadAllData();
+  }catch(err){
+    console.error(err);
+    toast("เพิ่มตัวเลือกไม่สำเร็จ: " + err.message);
+  }
+}
+
+async function deleteSettingOptionFromUI(category, value){
+  if(!confirm(`ลบ "${value}" ออกจาก ${settingLabel(category)} ?`)) return;
+
+  try{
+    await api("deleteSettingOption", { category, value, user: CONFIG.defaultUser });
+    toast("ลบตัวเลือกแล้ว");
+    await loadAllData();
+  }catch(err){
+    console.error(err);
+    toast("ลบตัวเลือกไม่สำเร็จ: " + err.message);
+  }
+}
+
+function escapeAttr(value){
+  return String(value || "")
+    .replace(/&/g,"&amp;")
+    .replace(/'/g,"&#39;")
+    .replace(/"/g,"&quot;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;");
 }
 function fillSelect(sel,arr,placeholder="เลือก",clear=true){ if(!sel) return; const old=sel.value; sel.innerHTML = (clear?`<option value="">${placeholder}</option>`:"") + arr.map(v=>`<option value="${v}">${v}</option>`).join(""); if([...sel.options].some(o=>o.value===old)) sel.value=old; }
 function fillSelectObj(sel,arr,placeholder="เลือก",clear=true){ if(!sel) return; const old=sel.value; sel.innerHTML = (clear?`<option value="">${placeholder}</option>`:"") + arr.map(o=>`<option value="${o.value}">${o.label}</option>`).join(""); if([...sel.options].some(o=>o.value===old)) sel.value=old; }
@@ -443,8 +667,17 @@ async function deleteRecord(sheet,recordId){
   await postAndRefresh("deleteRecord",{sheet,recordId,user:CONFIG.defaultUser,reason:"Deleted from web"},"ลบข้อมูลแล้ว");
 }
 async function createChecklistForWarehouse(){
-  const wh=$("#checklistWarehouseSelect").value; if(!wh) return toast("เลือกคลังก่อน");
-  await postAndRefresh("createChecklist",{warehouseId:wh,user:CONFIG.defaultUser},"สร้าง Checklist แล้ว");
+  const wh = $("#checklistWarehouseSelect").value;
+  const caseType = $("#checklistCaseFilter")?.value || "";
+  if(!wh) return toast("เลือกคลังก่อน");
+
+  if(!confirm(`สร้าง Checklist ${caseType || "ทุกเคส"} ให้คลัง ${whName(wh)} ?`)) return;
+
+  await postAndRefresh("createChecklist", {
+    warehouseId: wh,
+    caseType,
+    user: CONFIG.defaultUser
+  }, "สร้าง Checklist แล้ว");
 }
 
 function initSettingsFields(){ $("#sheetIdInput").value=CONFIG.spreadsheetId; $("#apiUrlInput").value=CONFIG.apiUrl; $("#defaultUserInput").value=CONFIG.defaultUser; $("#dueSoonDaysInput").value=CONFIG.dueSoonDays; }
@@ -468,7 +701,27 @@ async function demoApi(action,payload){
   if(action==="addIssue"){state.issues.push(payload);log("Issues",payload["Issue ID"],"add issue")}
   if(action==="updateStatus"){const t=state.tasks.find(x=>x["Task ID"]===payload.taskId); if(t){const old=t.Status;t.Status=payload.status;t["Progress %"]=payload.progress;t["Last Updated"]=new Date().toISOString(); if(payload.status==="ปิดแล้ว"){t["Closed Date"]=todayISO();t["Progress %"]=100} log("Tasks",payload.taskId,`status ${old} -> ${payload.status}`)}}
   if(action==="deleteRecord"){let map={Warehouses:state.warehouses,Tasks:state.tasks,Documents:state.documents,Calendar:state.calendar,Issues:state.issues}; const idField={Warehouses:"Warehouse ID",Tasks:"Task ID",Documents:"Document ID",Calendar:"Event ID",Issues:"Issue ID"}[payload.sheet]; const arr=map[payload.sheet]; const idx=arr?.findIndex(x=>x[idField]===payload.recordId); if(idx>=0){const snap=arr.splice(idx,1)[0]; state.trash.push({Timestamp:new Date().toLocaleString("th-TH"),"Source Sheet":payload.sheet,"Record ID":payload.recordId,"Warehouse ID":snap["Warehouse ID"]||payload.recordId,"Deleted By":CONFIG.defaultUser,Reason:payload.reason,"Snapshot JSON":JSON.stringify(snap)});}}
-  if(action==="createChecklist"){state.checklistTemplates.forEach(t=>state.tasks.push({"Task ID":uid("T"),"Created Date":todayISO(),"Warehouse ID":payload.warehouseId,Phase:t.Phase,"Task Name":t["Task Name"],Assignee:t["Default Assignee"]||"",Status:t["Default Status"]||"To Do",Priority:t.Priority||"กลาง","Due Date":addDays(todayISO(),Number(t["Default Due Offset Days"]||7)),"Progress %":0,Notes:t.Notes||""}));}
+  if(action==="addSettingOption"){
+    const cat = payload.category, val = payload.value;
+    state.settings[cat] ||= [];
+    if(!state.settings[cat].includes(val)) state.settings[cat].push(val);
+  }
+  if(action==="deleteSettingOption"){
+    const cat = payload.category, val = payload.value;
+    state.settings[cat] = (state.settings[cat] || []).filter(x => x !== val);
+  }
+  if(action==="addChecklistTemplate"){
+    state.checklistTemplates.push(payload.template);
+  }
+  if(action==="updateChecklistTemplate"){
+    const idx = state.checklistTemplates.findIndex(t => t["Template ID"] === payload.template["Template ID"]);
+    if(idx >= 0) state.checklistTemplates[idx] = payload.template;
+    else state.checklistTemplates.push(payload.template);
+  }
+  if(action==="deleteChecklistTemplate"){
+    state.checklistTemplates = state.checklistTemplates.filter(t => t["Template ID"] !== payload.templateId);
+  }
+  if(action==="createChecklist"){state.checklistTemplates.filter(t => !payload.caseType || (t["Case Type"] || "Standard") === payload.caseType).forEach(t=>state.tasks.push({"Task ID":uid("T"),"Created Date":todayISO(),"Warehouse ID":payload.warehouseId,Phase:t.Phase,"Task Name":t["Task Name"],Assignee:t["Default Assignee"]||"",Status:t["Default Status"]||"To Do",Priority:t.Priority||"กลาง","Due Date":addDays(todayISO(),Number(t["Default Due Offset Days"]||7)),"Progress %":0,Notes:t.Notes||""}));}
   return {success:true};
 }
 function addDays(iso,n){ const d=parseDate(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }

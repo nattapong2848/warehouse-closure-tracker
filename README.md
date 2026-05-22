@@ -22,3 +22,19 @@
 - แยกกลุ่มย่อยตามประเภทเอกสาร
 - เพิ่ม filter คลัง / ประเภทเอกสาร / ค้นหา
 - กดเพิ่มเอกสารเข้าคลังนั้นได้ทันที
+
+
+## V3.4.3 Editable Settings Manager
+- หน้า Settings เพิ่ม/ลบค่าจาก Google Sheet ได้
+- รองรับหมวด Task Status, Priority, Warehouse Status, Phase, Document Type, Document Status, Event Type, Calendar Status
+- ค่าที่เพิ่ม/ลบจะถูกใช้เป็น dropdown บนเว็บหลัง Sync/Refresh
+- ต้องอัปเดต apps-script.gs และ Deploy New version เพราะมี action ใหม่: addSettingOption, deleteSettingOption
+
+
+## V3.4.4 Editable Checklist Builder
+- หน้า Checklist เพิ่ม/แก้ไข/ลบ Template ได้จากหน้าเว็บ
+- รองรับ Case Type เช่น Standard, Urgent, Small Site, Large Warehouse, Custom
+- สร้าง Checklist ให้แต่ละคลังได้ตาม Case Type
+- Template ถูกบันทึกใน Sheet `Checklist_Templates`
+- การลบ Template เข้า `Trash` และบันทึก `Activity_Log`
+- ต้องอัปเดต apps-script.gs และ Deploy New version

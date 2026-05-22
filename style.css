@@ -261,3 +261,223 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
   .doc-warehouse-head,.doc-file-card{flex-direction:column}
   .doc-actions{justify-content:flex-start}
 }
+
+
+/* V3.4.3 Editable Settings Manager */
+.settings-manager-panel{
+  overflow:hidden;
+  position:relative;
+}
+
+.settings-manager-panel:before{
+  content:"";
+  position:absolute;
+  width:260px;
+  height:260px;
+  right:-100px;
+  top:-120px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,107,0,.18),transparent 68%);
+}
+
+.settings-control-grid{
+  position:relative;
+  display:grid;
+  grid-template-columns:1.1fr 1.4fr auto;
+  gap:14px;
+  align-items:end;
+  margin-bottom:18px;
+}
+
+.settings-control-grid label{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  font-weight:900;
+  color:#475569;
+}
+
+.settings-active-box{
+  position:relative;
+  background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(28,36,53,.92));
+  color:#fff;
+  border-radius:26px;
+  padding:22px;
+  margin:18px 0;
+  box-shadow:0 24px 80px rgba(15,23,42,.22);
+  overflow:hidden;
+}
+
+.settings-active-box:before{
+  content:"";
+  position:absolute;
+  inset:-80px;
+  background:conic-gradient(from 90deg,transparent,rgba(255,107,0,.24),transparent,rgba(88,213,255,.16),transparent);
+  animation:spin 15s linear infinite;
+}
+
+.settings-active-box > *{
+  position:relative;
+}
+
+.settings-active-box h4{
+  margin:0;
+  font-size:24px;
+}
+
+.settings-active-box p{
+  margin:4px 0 16px;
+  color:#cbd5e1;
+  font-weight:700;
+}
+
+.setting-option-list{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.setting-option-pill{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 8px 8px 13px;
+  border-radius:999px;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.16);
+  color:#fff;
+  font-weight:900;
+  box-shadow:inset 0 0 22px rgba(255,255,255,.03);
+}
+
+.setting-option-pill button{
+  border:0;
+  border-radius:999px;
+  padding:5px 10px;
+  background:rgba(255,107,0,.95);
+  color:#fff;
+  font-weight:900;
+}
+
+.setting-category-grid{
+  position:relative;
+}
+
+.setting-category-card{
+  cursor:pointer;
+  transition:.22s;
+}
+
+.setting-category-card:hover{
+  transform:translateY(-4px);
+  border-color:rgba(255,107,0,.35);
+  box-shadow:0 28px 90px rgba(255,107,0,.16);
+}
+
+.setting-card-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.setting-card-head h4{
+  margin:0;
+}
+
+.setting-card-head span{
+  color:#ff6b00;
+  font-weight:900;
+}
+
+.setting-category-card p b{
+  display:inline-block;
+  margin:3px 0;
+  color:#334155;
+}
+
+@media(max-width:860px){
+  .settings-control-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* V3.4.4 Editable Checklist Builder */
+.checklist-command{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  background:linear-gradient(135deg,rgba(255,107,0,.12),rgba(88,213,255,.10));
+  border:1px solid rgba(255,255,255,.7);
+  border-radius:24px;
+  padding:18px;
+  margin-bottom:18px;
+}
+
+.checklist-command h4{
+  margin:0;
+  font-size:22px;
+  font-weight:900;
+}
+
+.checklist-command p{
+  margin:4px 0 0;
+  color:#64748b;
+  font-weight:800;
+}
+
+.checklist-template-grid{
+  grid-template-columns:repeat(auto-fill,minmax(310px,1fr));
+}
+
+.checklist-template-card{
+  position:relative;
+  overflow:hidden;
+  cursor:default;
+}
+
+.checklist-template-card:before{
+  content:"";
+  position:absolute;
+  width:150px;
+  height:150px;
+  right:-60px;
+  top:-60px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(255,107,0,.16),transparent 68%);
+}
+
+.checklist-template-card > *{
+  position:relative;
+}
+
+.template-top{
+  display:flex;
+  gap:8px;
+  justify-content:space-between;
+  margin-bottom:12px;
+}
+
+.template-meta{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin:12px 0;
+  color:#64748b;
+  font-weight:800;
+  font-size:13px;
+}
+
+#checklistTemplateForm{
+  border:1px solid rgba(255,107,0,.18);
+  box-shadow:0 30px 110px rgba(255,107,0,.12);
+}
+
+@media(max-width:780px){
+  .checklist-command{
+    flex-direction:column;
+    align-items:stretch;
+  }
+}

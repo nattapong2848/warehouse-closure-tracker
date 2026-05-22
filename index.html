@@ -284,11 +284,99 @@
       <section class="view" id="checklistView">
         <div class="panel">
           <div class="panel-head split">
-            <div><h3>Checklist ปิดคลังอัตโนมัติ</h3><span>สร้างงานมาตรฐาน 7 เฟสให้คลังที่เลือก</span></div>
-            <div class="filters"><select id="checklistWarehouseSelect"></select><button class="primary-btn" id="createChecklistBtn">สร้าง Checklist</button></div>
+            <div>
+              <h3>Checklist Builder</h3>
+              <span>แก้ไข เพิ่ม ลบ Template ได้เอง และสร้าง Checklist ให้เหมาะกับแต่ละเคส/คลัง</span>
+            </div>
+            <div class="filters">
+              <select id="checklistWarehouseSelect"></select>
+              <select id="checklistCaseFilter">
+                <option value="">ทุกเคส</option>
+                <option value="Standard">Standard</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Small Site">Small Site</option>
+                <option value="Large Warehouse">Large Warehouse</option>
+                <option value="Custom">Custom</option>
+              </select>
+              <button class="primary-btn" id="createChecklistBtn" type="button">สร้าง Checklist ให้คลังนี้</button>
+            </div>
           </div>
-          <div id="checklistTemplates" class="template-grid"></div>
+
+          <div class="checklist-command">
+            <div>
+              <h4>ระบบนี้ใช้ทำอะไร?</h4>
+              <p>สร้างรายการงานมาตรฐานให้แต่ละคลังอัตโนมัติ เช่น ตรวจสัญญา แจ้งเลิก เคลียร์ทรัพย์สิน คืนสภาพ ส่งมอบ และปิดการเงิน โดยสามารถแก้ Template ตามเคสจริงได้</p>
+            </div>
+            <button class="ghost-btn" id="newChecklistTemplateBtn" type="button">+ เพิ่ม Template ใหม่</button>
+          </div>
+
+          <div id="checklistTemplates" class="template-grid checklist-template-grid"></div>
         </div>
+
+        <form class="panel form-panel hidden" id="checklistTemplateForm">
+          <div class="panel-head split">
+            <div>
+              <h3 id="checklistTemplateFormTitle">เพิ่ม Checklist Template</h3>
+              <span>แก้รายการงานมาตรฐานที่ใช้สร้าง Task อัตโนมัติ</span>
+            </div>
+            <button class="ghost-btn" id="cancelChecklistTemplateBtn" type="button">ยกเลิก</button>
+          </div>
+
+          <input type="hidden" name="templateId">
+
+          <div class="form-grid">
+            <label>Case Type
+              <select name="caseType">
+                <option value="Standard">Standard</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Small Site">Small Site</option>
+                <option value="Large Warehouse">Large Warehouse</option>
+                <option value="Custom">Custom</option>
+              </select>
+            </label>
+
+            <label>Phase
+              <select name="phase" data-setting="Phase"></select>
+            </label>
+
+            <label class="full">Task Name *
+              <input name="taskName" required placeholder="เช่น นัด Landlord ตรวจรับพื้นที่">
+            </label>
+
+            <label>Default Assignee
+              <input name="defaultAssignee" placeholder="ปล่อยว่างได้">
+            </label>
+
+            <label>Priority
+              <select name="priority" data-setting="Priority"></select>
+            </label>
+
+            <label>Default Status
+              <select name="defaultStatus" data-setting="Task Status"></select>
+            </label>
+
+            <label>Due Offset Days
+              <input type="number" name="dueOffset" value="7" min="0" placeholder="กี่วันหลังเริ่มปิดคลัง">
+            </label>
+
+            <label>Document Required
+              <select name="documentRequired" data-setting="Document Type"></select>
+            </label>
+
+            <label>Active
+              <select name="active">
+                <option value="TRUE">TRUE</option>
+                <option value="FALSE">FALSE</option>
+              </select>
+            </label>
+
+            <label class="full">Notes
+              <textarea name="notes" placeholder="คำอธิบาย / เงื่อนไขเฉพาะของ Template นี้"></textarea>
+            </label>
+          </div>
+
+          <button class="primary-btn wide" type="submit">บันทึก Checklist Template</button>
+        </form>
       </section>
 
       <section class="view" id="reportsView">
@@ -329,9 +417,34 @@
             <button class="ghost-btn" id="testApiBtn">ทดสอบ API</button>
           </div>
         </div>
-        <div class="panel">
-          <div class="panel-head"><h3>Settings จาก Sheet</h3><span>ใช้เป็น dropdown ของระบบ</span></div>
-          <div id="settingsGrid" class="settings-grid"></div>
+        <div class="panel settings-manager-panel">
+          <div class="panel-head split">
+            <div>
+              <h3>Settings จาก Sheet</h3>
+              <span>เพิ่ม/ลบตัวเลือก Dropdown ของระบบ เช่น สถานะงาน ความสำคัญ เฟสงาน ประเภทเอกสาร</span>
+            </div>
+            <span class="chip soft-chip">Editable Dropdown Center</span>
+          </div>
+
+          <div class="settings-control-grid">
+            <label>
+              หมวดที่ต้องการแก้ไข
+              <select id="settingCategorySelect"></select>
+            </label>
+            <label>
+              เพิ่มตัวเลือกใหม่
+              <input id="settingNewValueInput" placeholder="เช่น รอ Owner / สูงสุด / ใบแจ้งเลิกสัญญา">
+            </label>
+            <button class="primary-btn" id="addSettingOptionBtn" type="button">+ เพิ่มตัวเลือก</button>
+          </div>
+
+          <div class="settings-active-box">
+            <h4 id="settingActiveTitle">เลือกหมวด Settings</h4>
+            <p>รายการด้านล่างจะถูกใช้เป็น dropdown บนหน้าเว็บทันทีหลัง Refresh/Sync</p>
+            <div id="settingOptionList" class="setting-option-list"></div>
+          </div>
+
+          <div id="settingsGrid" class="settings-grid setting-category-grid"></div>
         </div>
       </section>
     </main>
