@@ -481,3 +481,18 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
     align-items:stretch;
   }
 }
+
+
+/* V3.4.5 Stability improvements */
+.checklist-template-card select:empty,
+.settings-manager-panel select:empty{
+  outline:3px solid rgba(239,68,68,.2);
+}
+
+.template-card small{
+  line-height:1.5;
+}
+
+.form-grid datalist{
+  display:none;
+}

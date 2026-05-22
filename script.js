@@ -145,32 +145,76 @@ async function loadAllData(){
 }
 function setSync(ok,msg){ $("#syncText").textContent=msg; $("#syncSubText").textContent= ok ? "Google Sheet Sync" : "Google Sheet Sync"; $("#syncDot").classList.toggle("good", ok); }
 function normalizeSettings(rows){
-  if(!rows?.length) return {};
-  const headers = Object.keys(rows[0]).length ? Object.keys(rows[0]) : [];
-  const out = {};
-  if(headers.length){
-    headers.forEach(h => out[h] = rows.map(r=>r[h]).filter(Boolean));
+  const fallback = {};
+  if(!rows) return fallback;
+
+  // Case 1: Apps Script returns array of objects:
+  // [{ "Task Status": "Backlog", "Priority": "สูง" }, ...]
+  if(Array.isArray(rows) && rows.length && typeof rows[0] === "object" && !Array.isArray(rows[0])){
+    const keys = Object.keys(rows[0]);
+    keys.forEach(k => {
+      fallback[k] = [...new Set(rows.map(r => String(r[k] || "").trim()).filter(Boolean))];
+    });
+    return fallback;
   }
-  return out;
+
+  // Case 2: raw 2D array:
+  // [["Task Status","Priority"],["Backlog","สูง"]]
+  if(Array.isArray(rows) && Array.isArray(rows[0])){
+    const headers = rows[0].map(x => String(x || "").trim()).filter(Boolean);
+    headers.forEach((h, col) => {
+      fallback[h] = [...new Set(rows.slice(1).map(r => String((r || [])[col] || "").trim()).filter(Boolean))];
+    });
+    return fallback;
+  }
+
+  return fallback;
 }
 function ensureDefaultSettings(){
-  state.settings["Task Status"] ||= ["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"];
-  state.settings["Priority"] ||= ["สูงมาก","สูง","กลาง","ต่ำ"];
-  state.settings["Warehouse Status"] ||= ["ยังไม่เริ่ม","กำลังปิดคลัง","รอส่งมอบ","ส่งมอบแล้ว","ปิดโครงการแล้ว"];
-  state.settings["Phase"] ||= ["เฟส 1 · ตรวจสัญญาและแจ้งเลิก","เฟส 2 · วางแผนและตั้งทีม","เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","เฟส 4 · ยกเลิก Vendor และสาธารณูปโภค","เฟส 5 · คืนสภาพพื้นที่","เฟส 6 · ส่งมอบพื้นที่","เฟส 7 · ปิดการเงินและเงินประกัน"];
-  state.settings["Document Type"] ||= ["สัญญาเช่า","ใบส่งมอบพื้นที่","รูปภาพพื้นที่","ใบเสนอราคา","Invoice / PO","อื่น ๆ"];
-  state.settings["Document Status"] ||= ["รอตรวจสอบ","ผ่าน","ต้องแก้ไข"];
-  state.settings["Event Type"] ||= ["กำหนดส่งงาน","นัดหมาย","ตรวจพื้นที่","ติดตามเอกสาร","แจ้งเตือน"];
-  state.settings["Calendar Status"] ||= ["ยังไม่เตือน","เตือนแล้ว","เสร็จสิ้น","ยกเลิก"];
+  const defaults = {
+    "Task Status": ["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"],
+    "Priority": ["สูงมาก","สูง","กลาง","ต่ำ"],
+    "Warehouse Status": ["ยังไม่เริ่ม","กำลังปิดคลัง","รอส่งมอบ","ส่งมอบแล้ว","ปิดโครงการแล้ว"],
+    "Phase": ["เฟส 1 · ตรวจสัญญาและแจ้งเลิก","เฟส 2 · วางแผนและตั้งทีม","เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","เฟส 4 · ยกเลิก Vendor และสาธารณูปโภค","เฟส 5 · คืนสภาพพื้นที่","เฟส 6 · ส่งมอบพื้นที่","เฟส 7 · ปิดการเงินและเงินประกัน"],
+    "Document Type": ["สัญญาเช่า","ใบส่งมอบพื้นที่","รูปภาพพื้นที่","ใบเสนอราคา","Invoice / PO","อื่น ๆ"],
+    "Document Status": ["รอตรวจสอบ","ผ่าน","ต้องแก้ไข"],
+    "Event Type": ["กำหนดส่งงาน","นัดหมาย","ตรวจพื้นที่","ติดตามเอกสาร","แจ้งเตือน"],
+    "Calendar Status": ["ยังไม่เตือน","เตือนแล้ว","เสร็จสิ้น","ยกเลิก"]
+  };
+
+  Object.entries(defaults).forEach(([key, arr]) => {
+    const existing = Array.isArray(state.settings[key]) ? state.settings[key].filter(Boolean) : [];
+    state.settings[key] = [...new Set([...existing, ...arr])];
+  });
+
+  state.checklistTemplates = normalizeChecklistTemplates(state.checklistTemplates);
+
   if(!state.checklistTemplates.length){
     state.checklistTemplates = [
-      {"Template ID":"TPL-001","Phase":"เฟส 1 · ตรวจสัญญาและแจ้งเลิก","Task Name":"ตรวจสัญญาเช่าและสรุปเงื่อนไขสำคัญ","Priority":"สูง","Default Status":"To Do","Default Due Offset Days":"3","Document Required":"สัญญาเช่า"},
-      {"Template ID":"TPL-002","Phase":"เฟส 1 · ตรวจสัญญาและแจ้งเลิก","Task Name":"ส่งหนังสือแจ้งเลิก/ไม่ต่อสัญญา","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"5","Document Required":"หนังสือแจ้งเลิก"},
-      {"Template ID":"TPL-003","Phase":"เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","Task Name":"ตรวจนับทรัพย์สินและสินค้าในพื้นที่","Priority":"สูง","Default Status":"To Do","Default Due Offset Days":"10","Document Required":"Inventory List"},
-      {"Template ID":"TPL-004","Phase":"เฟส 5 · คืนสภาพพื้นที่","Task Name":"ทำ Defect List และคืนสภาพพื้นที่","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"18","Document Required":"รูปภาพพื้นที่"},
-      {"Template ID":"TPL-005","Phase":"เฟส 6 · ส่งมอบพื้นที่","Task Name":"Final Walkthrough และเซ็นเอกสารส่งมอบ","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"21","Document Required":"ใบส่งมอบพื้นที่"}
+      {"Template ID":"TPL-001","Phase":"เฟส 1 · ตรวจสัญญาและแจ้งเลิก","Task Name":"ตรวจสัญญาเช่าและสรุปเงื่อนไขสำคัญ","Priority":"สูง","Default Status":"To Do","Default Due Offset Days":"3","Document Required":"สัญญาเช่า","Case Type":"Standard","Active":"TRUE","Notes":"ตรวจวันสิ้นสุดสัญญา Notice Period เงินประกัน และเงื่อนไขคืนสภาพ"},
+      {"Template ID":"TPL-002","Phase":"เฟส 1 · ตรวจสัญญาและแจ้งเลิก","Task Name":"ส่งหนังสือแจ้งเลิก/ไม่ต่อสัญญา","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"5","Document Required":"อื่น ๆ","Case Type":"Standard","Active":"TRUE","Notes":"เก็บหลักฐานการรับทราบจาก Landlord"},
+      {"Template ID":"TPL-003","Phase":"เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","Task Name":"ตรวจนับทรัพย์สินและสินค้าในพื้นที่","Priority":"สูง","Default Status":"To Do","Default Due Offset Days":"10","Document Required":"รูปภาพพื้นที่","Case Type":"Standard","Active":"TRUE","Notes":"แยกของย้าย / คืน / ทิ้ง / ขาย"},
+      {"Template ID":"TPL-004","Phase":"เฟส 5 · คืนสภาพพื้นที่","Task Name":"ทำ Defect List และคืนสภาพพื้นที่","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"18","Document Required":"รูปภาพพื้นที่","Case Type":"Standard","Active":"TRUE","Notes":"เก็บภาพก่อน/หลังทุกจุด"},
+      {"Template ID":"TPL-005","Phase":"เฟส 6 · ส่งมอบพื้นที่","Task Name":"Final Walkthrough และเซ็นเอกสารส่งมอบ","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"21","Document Required":"ใบส่งมอบพื้นที่","Case Type":"Standard","Active":"TRUE","Notes":"คืนกุญแจ/บัตรผ่านและเก็บหลักฐาน"}
     ];
   }
+}
+
+function normalizeChecklistTemplates(list){
+  if(!Array.isArray(list)) return [];
+  return list.filter(Boolean).map((t, idx) => ({
+    "Template ID": t["Template ID"] || t.templateId || `TPL-LOCAL-${idx+1}`,
+    "Phase": t.Phase || t.phase || "",
+    "Task Name": t["Task Name"] || t.taskName || "",
+    "Default Assignee": t["Default Assignee"] || t.defaultAssignee || "",
+    "Priority": t.Priority || t.priority || "กลาง",
+    "Default Status": t["Default Status"] || t.defaultStatus || "To Do",
+    "Default Due Offset Days": t["Default Due Offset Days"] || t.dueOffset || "7",
+    "Document Required": t["Document Required"] || t.documentRequired || "",
+    "Notes": t.Notes || t.notes || "",
+    "Case Type": t["Case Type"] || t.caseType || "Standard",
+    "Active": String(t.Active || t.active || "TRUE").toUpperCase() === "FALSE" ? "FALSE" : "TRUE"
+  })).filter(t => t["Task Name"]);
 }
 function renderAll(){
   renderDropdowns(); renderDashboard(); renderWarehouseStatus(); renderProfiles(); renderTasks(); renderDocuments(); renderCalendar(); renderIssues(); renderChecklist(); renderDailyReport(); renderActivity(); renderTrash(); renderSettingsGrid();
@@ -404,8 +448,9 @@ function openEventDetail(id,taskId){ if(taskId) quickStatus(taskId); }
 
 function renderIssues(){ $("#issuesList").innerHTML=state.issues.map(i=>`<div class="mini-card"><div><b>${i["Issue Title"]}</b><small>${whName(i["Warehouse ID"])} · ${i.Status} · ${i.Priority||"-"}</small></div><button class="tiny-btn red" onclick="deleteRecord('Issues','${i["Issue ID"]}')">ลบ</button></div>`).join("") || empty("ยังไม่มี Issue"); }
 function renderChecklist(){
+  ensureDefaultSettings();
   const caseFilter = $("#checklistCaseFilter")?.value || "";
-  const templates = state.checklistTemplates.filter(t => {
+  const templates = normalizeChecklistTemplates(state.checklistTemplates).filter(t => {
     const active = String(t.Active || "TRUE").toUpperCase() !== "FALSE";
     const matchCase = !caseFilter || (t["Case Type"] || "Standard") === caseFilter;
     return active && matchCase;
@@ -431,10 +476,11 @@ function renderChecklist(){
         <button class="tiny-btn red" onclick="deleteChecklistTemplate('${escapeAttr(tid)}')">ลบ</button>
       </div>
     </div>`;
-  }).join("") || empty("ยังไม่มี Checklist Template ในเคสนี้");
+  }).join("") || empty("ยังไม่มี Checklist Template ในเคสนี้ กด + เพิ่ม Template ใหม่ เพื่อสร้างรายการเอง");
 }
 
 function openNewChecklistTemplateForm(){
+  renderDropdowns();
   const form = $("#checklistTemplateForm");
   form.reset();
   form.elements.templateId.value = "";
@@ -448,7 +494,8 @@ function closeChecklistTemplateForm(){
 }
 
 function editChecklistTemplate(templateId){
-  const t = state.checklistTemplates.find(x => x["Template ID"] === templateId);
+  renderDropdowns();
+  const t = normalizeChecklistTemplates(state.checklistTemplates).find(x => x["Template ID"] === templateId);
   if(!t) return toast("ไม่พบ Template");
 
   const form = $("#checklistTemplateForm");
@@ -470,7 +517,8 @@ function editChecklistTemplate(templateId){
 }
 
 function duplicateChecklistTemplate(templateId){
-  const t = state.checklistTemplates.find(x => x["Template ID"] === templateId);
+  renderDropdowns();
+  const t = normalizeChecklistTemplates(state.checklistTemplates).find(x => x["Template ID"] === templateId);
   if(!t) return toast("ไม่พบ Template");
   openNewChecklistTemplateForm();
   const form = $("#checklistTemplateForm");
@@ -507,10 +555,10 @@ async function submitChecklistTemplate(e){
     "Phase": d.phase,
     "Task Name": d.taskName,
     "Default Assignee": d.defaultAssignee,
-    "Priority": d.priority,
-    "Default Status": d.defaultStatus,
-    "Default Due Offset Days": d.dueOffset,
-    "Document Required": d.documentRequired,
+    "Priority": d.priority || "กลาง",
+    "Default Status": d.defaultStatus || "To Do",
+    "Default Due Offset Days": d.dueOffset || "7",
+    "Document Required": d.documentRequired || "",
     "Notes": d.notes,
     "Case Type": d.caseType,
     "Active": d.active
@@ -721,7 +769,7 @@ async function demoApi(action,payload){
   if(action==="deleteChecklistTemplate"){
     state.checklistTemplates = state.checklistTemplates.filter(t => t["Template ID"] !== payload.templateId);
   }
-  if(action==="createChecklist"){state.checklistTemplates.filter(t => !payload.caseType || (t["Case Type"] || "Standard") === payload.caseType).forEach(t=>state.tasks.push({"Task ID":uid("T"),"Created Date":todayISO(),"Warehouse ID":payload.warehouseId,Phase:t.Phase,"Task Name":t["Task Name"],Assignee:t["Default Assignee"]||"",Status:t["Default Status"]||"To Do",Priority:t.Priority||"กลาง","Due Date":addDays(todayISO(),Number(t["Default Due Offset Days"]||7)),"Progress %":0,Notes:t.Notes||""}));}
+  if(action==="createChecklist"){normalizeChecklistTemplates(state.checklistTemplates).filter(t => String(t.Active || "TRUE").toUpperCase() !== "FALSE" && (!payload.caseType || (t["Case Type"] || "Standard") === payload.caseType)).forEach(t=>state.tasks.push({"Task ID":uid("T"),"Created Date":todayISO(),"Warehouse ID":payload.warehouseId,Phase:t.Phase,"Task Name":t["Task Name"],Assignee:t["Default Assignee"]||"",Status:t["Default Status"]||"To Do",Priority:t.Priority||"กลาง","Due Date":addDays(todayISO(),Number(t["Default Due Offset Days"]||7)),"Progress %":0,Notes:t.Notes||""}));}
   return {success:true};
 }
 function addDays(iso,n){ const d=parseDate(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }

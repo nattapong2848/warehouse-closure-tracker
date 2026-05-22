@@ -38,3 +38,12 @@
 - Template ถูกบันทึกใน Sheet `Checklist_Templates`
 - การลบ Template เข้า `Trash` และบันทึก `Activity_Log`
 - ต้องอัปเดต apps-script.gs และ Deploy New version
+
+
+## V3.4.5 Stable Settings + Checklist
+- แก้ปัญหา Settings dropdown ไม่ขึ้น/ว่าง
+- ปรับ normalizeSettings ให้รองรับข้อมูลจาก Apps Script หลายรูปแบบ
+- หน้า Checklist ใช้ fallback dropdown ได้ แม้ Sheet Settings โหลดไม่ครบ
+- เพิ่มความเสถียรของ Checklist Template: Case Type, Active, Due Offset, Document Required
+- Apps Script ปรับ ensureSheet ให้เติม header ที่ขาดโดยไม่ทำลายข้อมูลเดิม
+- อัปเดต Sheet Settings และ Checklist_Templates เริ่มต้นให้แล้ว

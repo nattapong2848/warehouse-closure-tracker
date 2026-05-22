@@ -326,13 +326,14 @@
 
           <div class="form-grid">
             <label>Case Type
-              <select name="caseType">
-                <option value="Standard">Standard</option>
-                <option value="Urgent">Urgent</option>
-                <option value="Small Site">Small Site</option>
-                <option value="Large Warehouse">Large Warehouse</option>
-                <option value="Custom">Custom</option>
-              </select>
+              <input name="caseType" list="caseTypeList" placeholder="เช่น Standard / Urgent / Custom">
+              <datalist id="caseTypeList">
+                <option value="Standard"></option>
+                <option value="Urgent"></option>
+                <option value="Small Site"></option>
+                <option value="Large Warehouse"></option>
+                <option value="Custom"></option>
+              </datalist>
             </label>
 
             <label>Phase
