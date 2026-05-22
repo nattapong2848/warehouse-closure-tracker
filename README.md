@@ -1,57 +1,74 @@
-# ระบบปิดคลังสินค้า SPX V3 Web Package
+# SPX Warehouse Closure V3.4 Legendary Control Tower
 
-ใช้กับ Google Sheet Clean Database:
+เว็บระบบปิดคลังสินค้าแบบจัดเต็มสำหรับ GitHub Pages + Google Apps Script + Google Sheet
+
+## ใช้กับ Google Sheet
 
 Spreadsheet ID:
+
+```text
 1gNnjKeqxaE6TtCOOXOqnaG_E0v5dQtUmE_KfLgoo6hI
+```
 
-Google Sheet:
-https://docs.google.com/spreadsheets/d/1gNnjKeqxaE6TtCOOXOqnaG_E0v5dQtUmE_KfLgoo6hI/edit
+ไฟล์ฐานข้อมูล: `ระบบปิดคลังสินค้า SPX V3 - Clean Database`
 
-## ไฟล์
-- index.html
-- style.css
-- script.js
-- apps-script.gs
-- README.md
+เวอร์ชันนี้รองรับเพิ่ม:
+- Warehouse Status Dashboard ช่องละคลัง
+- Warehouse Profile Hub แบบเลือกคลังเป็นการ์ด
+- งานค้าง / งานเลยกำหนด / Issue ของแต่ละคลัง
+- เอกสารแยกตามคลังและประเภทเอกสาร
+- ปฏิทินรายเดือน กดวันที่ดูงานได้
+- Risk & Issue Tracker
+- Checklist Template ปิดคลังอัตโนมัติ
+- รายงานอัตโนมัติสำหรับส่ง LINE/Email
+- Soft Delete + Trash
+- Activity Log ทุก action
+- Ultra UI เอฟเฟกต์ Control Tower
 
-## วิธีใช้
-1. อัปโหลด index.html, style.css, script.js, README.md ขึ้น GitHub repository
-2. เปิด GitHub Pages ที่ Settings > Pages > Deploy from branch > main / root
-3. เปิด Google Sheet > Extensions > Apps Script
-4. วางโค้ดจาก apps-script.gs
-5. Deploy > New deployment > Web app
-6. ตั้งค่า Execute as: Me และ Who has access: Anyone
-7. Copy URL ที่ลงท้าย /exec
-8. เปิดเว็บ GitHub Pages > เมนูตั้งค่า > ใส่ Spreadsheet ID และ Apps Script URL
-9. กดทดสอบ API
+## ไฟล์ในแพ็ก
 
-## โครงสร้างฐานข้อมูล
-- Warehouses
-- Tasks
-- Documents
-- Calendar
-- Activity_Log
-- Settings
+```text
+index.html
+style.css
+script.js
+apps-script.gs
+README.md
+```
 
-หมายเหตุ: เอกสารใช้การวางลิงก์ Google Drive ก่อน ยังไม่อัปโหลดไฟล์จริงจากหน้าเว็บ
+## วิธีติดตั้งบน GitHub Pages
 
-## Ultra UI Version
+1. แตกไฟล์ zip
+2. อัปโหลด `index.html`, `style.css`, `script.js`, `README.md` เข้า GitHub repository
+3. ไปที่ Settings > Pages
+4. เลือก Deploy from branch: `main` และ `/root`
+5. รอจนได้ URL ของ GitHub Pages
 
-แพ็กนี้เป็นเวอร์ชันกราฟิกจัดเต็มของ SPX Warehouse Closure V3 เพิ่ม:
+## วิธีติดตั้ง Apps Script
 
-- Animated aurora background
-- Floating particle effect
-- SPX route mini-map บน sidebar
-- Hero command center panel
-- Radar progress animation
-- KPI cards แบบ glow/animated
-- Glassmorphism cards
-- Animated status bars
-- Responsive layout สำหรับ desktop และมือถือ
+1. เปิด Google Sheet
+2. Extensions > Apps Script
+3. ลบโค้ดเดิมใน `Code.gs`
+4. วางโค้ดจาก `apps-script.gs`
+5. Save
+6. Deploy > New deployment > Web app
+7. ตั้งค่า:
+   - Execute as: Me
+   - Who has access: Anyone
+8. กด Deploy
+9. Copy Web App URL ที่ลงท้าย `/exec`
 
-การติดตั้งเหมือนเดิม:
-1. อัปโหลด `index.html`, `style.css`, `script.js`, `README.md` ขึ้น GitHub Pages
-2. วาง `apps-script.gs` ใน Google Apps Script
-3. Deploy เป็น Web App แล้วใช้ URL ที่ลงท้าย `/exec`
-4. ใส่ Spreadsheet ID: `1gNnjKeqxaE6TtCOOXOqnaG_E0v5dQtUmE_KfLgoo6hI`
+## วิธีเชื่อมเว็บ
+
+1. เปิดหน้าเว็บ
+2. ไปเมนู `ตั้งค่า`
+3. ใส่ Spreadsheet ID:
+   `1gNnjKeqxaE6TtCOOXOqnaG_E0v5dQtUmE_KfLgoo6hI`
+4. ใส่ Apps Script URL ที่ลงท้าย `/exec`
+5. กดบันทึกการเชื่อมต่อ
+6. กดทดสอบ API
+
+## หมายเหตุสำคัญ
+
+- ถ้าแก้ `apps-script.gs` ต้อง Deploy > Manage deployments > Edit > New version > Deploy ทุกครั้ง
+- การแนบเอกสารใช้วิธีวาง Google Drive link ก่อน เพื่อความเสถียรบน GitHub Pages
+- ถ้าขึ้น Demo Mode แปลว่ายังไม่ได้ใส่ Apps Script URL หรือ API ยังไม่ผ่าน

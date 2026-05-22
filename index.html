@@ -1,324 +1,306 @@
 <!doctype html>
 <html lang="th">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ระบบปิดคลังสินค้า SPX V3 Ultra</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SPX Closure V3.4 Legendary Control Tower</title>
+  <meta name="description" content="ระบบปิดคลังสินค้า SPX V3.4 - Warehouse Profile Hub, Checklist, Issues, Documents, Calendar, Reports" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div class="fx-layer" aria-hidden="true">
-  <div class="mesh"></div>
-  <div class="aurora aurora-one"></div>
-  <div class="aurora aurora-two"></div>
-  <div class="aurora aurora-three"></div>
-  <div class="scanline"></div>
-  <div id="particleField"></div>
-</div>
+  <div class="ambient">
+    <span class="orb orb-a"></span><span class="orb orb-b"></span><span class="orb orb-c"></span>
+    <span class="grid"></span><span class="noise"></span>
+  </div>
 
-<div class="layout">
   <aside class="sidebar">
     <div class="brand">
-      <div class="logo"><span>SPX</span></div>
+      <div class="logo">SPX</div>
       <div>
-        <h1>Closure V3</h1>
-        <p>Ultra Control Tower</p>
+        <h1>Closure V3.4</h1>
+        <p>LEGENDARY CONTROL TOWER</p>
       </div>
     </div>
 
-    <div class="side-insight" aria-hidden="true">
-      <b>WAREHOUSE STATUS</b>
-      <strong>Closure Snapshot</strong>
-      <small>ดูสถานะงานค้างแยกตามคลังแบบการ์ด</small>
+    <div class="route-card">
+      <p>MISSION STATUS</p>
+      <div class="mini-bars">
+        <span style="--h:56%"></span><span style="--h:82%"></span><span style="--h:42%"></span><span style="--h:72%"></span>
+      </div>
+      <b id="missionPulse">Ready for sync</b>
     </div>
 
-    <nav>
-      <button class="nav active" data-view="dashboard"><span>⚡</span> Dashboard</button>
-      <button class="nav" data-view="warehouseStatus"><span>🧭</span> สถานะคลัง</button>
-      <button class="nav" data-view="warehouses"><span>🏢</span> โปรไฟล์คลัง</button>
-      <button class="nav" data-view="addWarehouse"><span>➕</span> เพิ่มคลัง</button>
-      <button class="nav" data-view="addTask"><span>📦</span> เพิ่มงาน</button>
-      <button class="nav" data-view="tasks"><span>📋</span> รายการงาน</button>
-      <button class="nav" data-view="documents"><span>📎</span> เอกสาร</button>
-      <button class="nav" data-view="calendar"><span>🗓️</span> ปฏิทิน</button>
-      <button class="nav" data-view="activity"><span>🛰️</span> Activity Log</button>
-      <button class="nav" data-view="settings"><span>⚙️</span> ตั้งค่า</button>
+    <nav class="nav" id="nav">
+      <button class="active" data-view="dashboard">⚡ Dashboard</button>
+      <button data-view="warehouseStatus">🏢 สถานะคลัง</button>
+      <button data-view="profileHub">🗂️ โปรไฟล์คลัง</button>
+      <button data-view="addWarehouse">➕ เพิ่มคลัง</button>
+      <button data-view="addTask">📦 เพิ่มงาน</button>
+      <button data-view="tasks">📋 รายการงาน</button>
+      <button data-view="documents">📎 เอกสาร</button>
+      <button data-view="calendar">🗓️ ปฏิทิน</button>
+      <button data-view="issues">🚨 Risks / Issues</button>
+      <button data-view="checklist">✅ Checklist</button>
+      <button data-view="reports">📣 รายงาน</button>
+      <button data-view="activity">🛰️ Activity Log</button>
+      <button data-view="trash">🗑️ ถังขยะ</button>
+      <button data-view="settings">⚙️ ตั้งค่า</button>
     </nav>
-    <div class="conn"><span id="connDot"></span><b id="connText">Demo Mode</b><small>Google Sheet Sync</small></div>
+
+    <div class="sync-box" id="syncBox">
+      <span class="dot"></span>
+      <div><b id="syncTitle">Demo Mode</b><p id="syncSub">Google Sheet Sync</p></div>
+    </div>
   </aside>
 
-  <main>
-    <header class="top">
+  <main class="main">
+    <header class="topbar">
       <div>
-        <p>SPX EXPRESS CONTROL TOWER</p>
-        <h2 id="title">Dashboard</h2>
+        <p class="eyebrow">SPX EXPRESS CONTROL TOWER</p>
+        <h2 id="pageTitle">Dashboard</h2>
       </div>
       <div class="top-actions">
-        <div class="clock"><span id="liveClock">--:--</span><small>Bangkok time</small></div>
-        <button id="refreshBtn" class="btn light">Refresh</button>
-        <button class="btn" data-go="addTask">+ เพิ่มงาน</button>
+        <div class="clock"><b id="clock">--:--:--</b><span>BANGKOK TIME</span></div>
+        <button class="btn ghost" onclick="loadAllData(true)">Refresh</button>
+        <button class="btn primary" onclick="openView('addTask')">+ เพิ่มงาน</button>
       </div>
     </header>
 
-    <section id="dashboard" class="view active">
-      <div class="hero-panel">
-        <div class="hero-copy">
+    <section class="view active" id="dashboardView">
+      <div class="hero">
+        <div>
           <span class="pill">LIVE WAREHOUSE CLOSURE COMMAND</span>
           <h3>ศูนย์ควบคุมงานปิดคลังแบบ Real-time</h3>
-          <p>ติดตามคลัง งาน เอกสาร ปฏิทิน และรายการที่ต้องตามวันนี้ในหน้าเดียว พร้อมเอฟเฟกต์ธีม SPX Express แบบจัดเต็ม</p>
+          <p>รวมคลัง งาน เอกสาร แผนงาน ปัญหา Checklist และรายงานไว้ในหน้าเดียว พร้อมเอฟเฟกต์ Control Tower เต็มรูปแบบ</p>
           <div class="hero-actions">
-            <button class="btn" data-go="addTask">สร้างงานใหม่</button>
-            <button class="btn ghost" data-go="warehouses">ดูโปรไฟล์คลัง</button>
+            <button class="btn primary" onclick="openView('addTask')">สร้างงานใหม่</button>
+            <button class="btn soft" onclick="openView('warehouseStatus')">ดูสถานะคลัง</button>
           </div>
         </div>
-        <div class="radar-card">
-          <div class="radar">
-            <i></i><i></i><i></i><i></i>
-            <strong id="heroProgress">0%</strong>
-            <span>PROJECT<br>PROGRESS</span>
-          </div>
-          <div id="heroSummary" class="hero-summary">กำลังประมวลผล...</div>
+        <div class="radar">
+          <div class="radar-ring"></div><div class="radar-ring r2"></div><div class="radar-ring r3"></div>
+          <div class="radar-sweep"></div>
+          <strong id="overallProgress">0%</strong><span>PROJECT<br>PROGRESS</span>
         </div>
       </div>
 
-      <div id="kpis" class="kpis"></div>
+      <div class="kpi-grid" id="kpiGrid"></div>
 
-      <div class="grid2">
-        <div class="card hologram"><h3>สถานะงาน</h3><div id="statusBars"></div></div>
-        <div class="card hologram"><h3>งานที่ต้องตาม</h3><div id="todayTasks"></div></div>
+      <div class="dash-grid">
+        <article class="panel">
+          <div class="panel-head"><h3>สถานะงาน</h3><span>Live status split</span></div>
+          <div id="statusBars" class="status-bars"></div>
+        </article>
+        <article class="panel alert-panel">
+          <div class="panel-head"><h3>งานที่ต้องตาม</h3><span>Due / Blocked / Waiting</span></div>
+          <div id="followList" class="follow-list"></div>
+        </article>
+      </div>
+
+      <div class="dash-grid">
+        <article class="panel">
+          <div class="panel-head"><h3>คลังที่ต้องจับตา</h3><span>Pending & overdue by warehouse</span></div>
+          <div id="hotWarehouses" class="warehouse-mini-list"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h3>Issue Radar</h3><span>Risks that can delay closure</span></div>
+          <div id="issueRadar" class="follow-list"></div>
+        </article>
       </div>
     </section>
 
-    <section id="warehouseStatus" class="view">
-      <div class="status-hero ultra-panel">
-        <div>
-          <p class="eyebrow">WAREHOUSE OPERATIONS BOARD</p>
-          <h3>สถานะงานรายคลัง</h3>
-          <small>ดูทีละคลังว่าเหลืองานอะไร ค้างตรงไหน เลยกำหนดกี่รายการ และกดแก้สถานะ / เปิดโปรไฟล์ / เพิ่มงานได้จากการ์ดเดียว</small>
-        </div>
-        <div class="status-tools">
-          <input id="warehouseStatusSearch" placeholder="ค้นหาคลัง / Owner / พื้นที่">
-          <select id="warehouseStatusFilter">
-            <option value="">ทุกสถานะคลัง</option>
-          </select>
-          <select id="warehouseWorkFilter">
-            <option value="">ทุกคลัง</option>
-            <option value="pending">มีงานค้าง</option>
-            <option value="overdue">มีงานเลยกำหนด</option>
-            <option value="blocked">มีงานติดขัด/รอเอกสาร/รอ Vendor</option>
-            <option value="done">งานปิดครบแล้ว</option>
-          </select>
-        </div>
+    <section class="view" id="warehouseStatusView">
+      <div class="toolbar">
+        <input id="warehouseStatusSearch" placeholder="ค้นหาคลัง / owner / พื้นที่" oninput="renderWarehouseStatus()" />
+        <select id="warehouseStatusFilter" onchange="renderWarehouseStatus()"><option value="">ทุกสถานะคลัง</option></select>
+        <select id="warehouseAttentionFilter" onchange="renderWarehouseStatus()">
+          <option value="">ทุกคลัง</option>
+          <option value="pending">มีงานค้าง</option>
+          <option value="overdue">มีงานเลยกำหนด</option>
+          <option value="issues">มี Issue เปิดอยู่</option>
+        </select>
       </div>
-      <div id="warehouseStatusBoard" class="warehouse-status-board"></div>
+      <div id="warehouseStatusGrid" class="warehouse-status-grid"></div>
     </section>
 
-    <section id="warehouses" class="view">
-      <div class="card hero-lite">
-        <div class="head">
-          <div>
-            <h3>โปรไฟล์คลัง</h3>
-            <small>เลือกคลังจากการ์ดด้านล่าง หรือเลือกจาก Dropdown เพื่อดูรายละเอียด งาน เอกสาร และสถานะของคลังนั้น</small>
-          </div>
-          <select id="warehouseSelect"></select>
-        </div>
-        <div id="warehouseCards" class="warehouse-cards"></div>
-        <div class="profile-actions">
-          <button id="deleteWarehouseBtn" class="btn danger" type="button">ลบคลังนี้</button>
-        </div>
-        <div id="warehouseProfile" class="profile"></div>
+    <section class="view" id="profileHubView">
+      <div class="section-intro">
+        <div><h3>Warehouse Profile Hub</h3><p>เลือกคลังเป็นการ์ด แล้วดูงาน เอกสาร ปฏิทิน Issue และ Activity ของคลังนั้นในหน้าเดียว</p></div>
+        <button class="btn primary" onclick="openView('addWarehouse')">+ เพิ่มคลัง</button>
       </div>
-      <div class="card"><h3>งานของคลังนี้</h3><div id="warehouseTasks"></div></div>
+      <div id="profileCards" class="profile-card-grid"></div>
+      <div id="profileDetail" class="profile-detail"></div>
     </section>
 
-    <section id="addWarehouse" class="view">
-      <div class="card form-card">
-        <h3>เพิ่มคลัง</h3>
-        <form id="warehouseForm" class="form">
-          <label>ชื่อคลัง *<input name="warehouseName" required></label>
-          <label>พื้นที่ / โซน<input name="locationZone"></label>
-          <label>Owner<input name="owner"></label>
-          <label>เบอร์ Owner<input name="ownerPhone"></label>
-          <label>วันเริ่มปิดคลัง<input type="date" name="startDate"></label>
-          <label>วันเป้าหมายส่งมอบ<input type="date" name="targetHandoverDate"></label>
-          <label>สถานะคลัง<select name="warehouseStatus" data-list="warehouseStatuses"></select></label>
-          <label class="full">ลิงก์โฟลเดอร์เอกสาร<input name="documentFolderLink"></label>
-          <label class="full">หมายเหตุ<textarea name="notes"></textarea></label>
-          <button class="btn full">บันทึกคลัง</button>
+    <section class="view" id="addWarehouseView">
+      <form class="panel form-panel" id="warehouseForm">
+        <div class="panel-head"><h3>เพิ่มคลัง</h3><span>Warehouse master profile</span></div>
+        <div class="form-grid">
+          <label><span>ชื่อคลัง *</span><input name="Warehouse Name" required placeholder="เช่น The Angel Clinic" /></label>
+          <label><span>พื้นที่ / โซน</span><input name="Location / Zone" placeholder="เช่น ปทุมธานี / บางนา" /></label>
+          <label><span>Owner</span><input name="Owner" /></label>
+          <label><span>เบอร์ Owner</span><input name="Owner Phone" /></label>
+          <label><span>วันที่เริ่มปิดคลัง</span><input type="date" name="Start Date" /></label>
+          <label><span>วันเป้าหมายส่งมอบ</span><input type="date" name="Target Handover Date" /></label>
+          <label><span>สถานะคลัง</span><select name="Warehouse Status" data-setting="Warehouse Status"></select></label>
+          <label><span>ลิงก์โฟลเดอร์เอกสาร</span><input name="Document Folder Link" placeholder="Google Drive folder link" /></label>
+          <label class="full"><span>หมายเหตุ</span><textarea name="Notes"></textarea></label>
+        </div>
+        <button class="btn primary wide" type="submit">บันทึกคลัง</button>
+      </form>
+    </section>
+
+    <section class="view" id="addTaskView">
+      <form class="panel form-panel" id="taskForm">
+        <div class="panel-head"><h3>เพิ่มงาน</h3><span>Task + optional calendar reminder</span></div>
+        <div class="form-grid">
+          <label><span>คลัง *</span><select name="Warehouse ID" id="taskWarehouseSelect" required></select></label>
+          <label><span>เฟสงาน</span><select name="Phase" data-setting="Phase"></select></label>
+          <label class="full"><span>ชื่องาน *</span><input name="Task Name" required placeholder="เช่น ตรวจสัญญาเช่า" /></label>
+          <label><span>ผู้รับผิดชอบ</span><input name="Assignee" /></label>
+          <label><span>สถานะ</span><select name="Status" data-setting="Task Status"></select></label>
+          <label><span>ความสำคัญ</span><select name="Priority" data-setting="Priority"></select></label>
+          <label><span>Due Date</span><input type="date" name="Due Date" /></label>
+          <label><span>Progress %</span><input type="number" name="Progress %" value="0" min="0" max="100" /></label>
+          <label><span>ลิงก์หลักฐาน</span><input name="Evidence Link" /></label>
+          <label class="full"><span>หมายเหตุ</span><textarea name="Notes"></textarea></label>
+        </div>
+        <label class="checkline"><input type="checkbox" name="autoCalendar" checked /> เพิ่มลงปฏิทินอัตโนมัติเมื่อมี Due Date</label>
+        <button class="btn primary wide" type="submit">บันทึกงาน</button>
+      </form>
+    </section>
+
+    <section class="view" id="tasksView">
+      <div class="toolbar">
+        <input id="taskSearch" placeholder="ค้นหางาน / owner / task id" oninput="renderTasks()" />
+        <select id="taskWarehouseFilter" onchange="renderTasks()"></select>
+        <select id="taskStatusFilter" onchange="renderTasks()"></select>
+        <button class="btn ghost" onclick="renderTasks()">Refresh</button>
+      </div>
+      <div class="panel table-panel"><div id="tasksTable"></div></div>
+    </section>
+
+    <section class="view" id="documentsView">
+      <div class="split-layout">
+        <form class="panel form-panel" id="documentForm">
+          <div class="panel-head"><h3>เพิ่มเอกสาร</h3><span>แยกเอกสารตามคลัง + งาน</span></div>
+          <label><span>คลัง</span><select name="Warehouse ID" id="docWarehouseSelect"></select></label>
+          <label><span>Task ID</span><input name="Task ID" placeholder="Optional" /></label>
+          <label><span>ประเภทเอกสาร</span><select name="Document Type" data-setting="Document Type"></select></label>
+          <label><span>ชื่อเอกสาร</span><input name="Document Name" required /></label>
+          <label><span>ลิงก์ไฟล์ / Google Drive</span><input name="File Link" required placeholder="วางลิงก์ไฟล์" /></label>
+          <label><span>สถานะเอกสาร</span><select name="Document Status" data-setting="Document Status"></select></label>
+          <label><span>ผู้อัปโหลด</span><input name="Uploaded By" /></label>
+          <label class="full"><span>หมายเหตุ</span><textarea name="Notes"></textarea></label>
+          <button class="btn primary wide" type="submit">เพิ่มเอกสาร</button>
         </form>
+        <div class="panel"><div class="panel-head"><h3>เอกสารทั้งหมด</h3><span>Filter by warehouse</span></div><div id="documentsList"></div></div>
       </div>
     </section>
 
-    <section id="addTask" class="view">
-      <div class="card form-card">
-        <h3>เพิ่มงาน</h3>
-        <form id="taskForm" class="form">
-          <label>คลัง *<select name="warehouseId" id="taskWarehouse" required></select></label>
-          <label>เฟสงาน<select name="phase" data-list="phases"></select></label>
-          <label class="full">ชื่องาน *<input name="taskName" required></label>
-          <label>ผู้รับผิดชอบ<input name="assignee"></label>
-          <label>สถานะ<select name="status" data-list="taskStatuses"></select></label>
-          <label>ความสำคัญ<select name="priority" data-list="priorities"></select></label>
-          <label>วันที่ครบกำหนด<input type="date" name="dueDate"></label>
-          <label>ความคืบหน้า %<input type="number" min="0" max="100" name="progress" value="0"></label>
-          <label class="full">ลิงก์เอกสาร/หลักฐาน<input name="evidenceLink"></label>
-          <label class="full">หมายเหตุ<textarea name="notes"></textarea></label>
-          <label class="check full"><input type="checkbox" name="addToCalendar"> เพิ่มลงปฏิทินด้วย</label>
-          <button class="btn full">บันทึกงาน</button>
+    <section class="view" id="calendarView">
+      <div class="calendar-head">
+        <button class="btn ghost" onclick="moveMonth(-1)">‹ เดือนก่อน</button>
+        <h3 id="calendarTitle">ปฏิทิน</h3>
+        <button class="btn ghost" onclick="moveMonth(1)">เดือนถัดไป ›</button>
+      </div>
+      <div class="split-layout">
+        <form class="panel form-panel" id="calendarForm">
+          <div class="panel-head"><h3>เพิ่มแผนงาน</h3><span>Reminder plan</span></div>
+          <label><span>คลัง</span><select name="Warehouse ID" id="calWarehouseSelect"></select></label>
+          <label><span>Task ID</span><input name="Task ID" /></label>
+          <label><span>ชื่อกิจกรรม</span><input name="Event Title" required /></label>
+          <label><span>ประเภท</span><select name="Event Type" data-setting="Event Type"></select></label>
+          <label><span>วันที่เริ่ม</span><input type="date" name="Start Date" /></label>
+          <label><span>Due Date</span><input type="date" name="Due Date" required /></label>
+          <label><span>ผู้รับผิดชอบ</span><input name="Assignee" /></label>
+          <label><span>เตือนล่วงหน้า (วัน)</span><input type="number" name="Reminder Days" value="2" min="0" /></label>
+          <label class="full"><span>หมายเหตุ</span><textarea name="Notes"></textarea></label>
+          <button class="btn primary wide" type="submit">เพิ่มแผนงาน</button>
         </form>
+        <div class="panel calendar-panel"><div id="calendarGrid" class="calendar-grid"></div><div id="calendarDayDetail" class="day-detail"></div></div>
       </div>
     </section>
 
-    <section id="tasks" class="view">
-      <div class="card">
-        <h3>รายการงาน</h3>
-        <div class="filters">
-          <input id="taskSearch" placeholder="ค้นหา">
-          <select id="taskFilterWh"></select>
-          <select id="taskFilterStatus"></select>
-          <select id="taskFilterPriority"></select>
-        </div>
-        <div id="taskTable"></div>
+    <section class="view" id="issuesView">
+      <div class="split-layout">
+        <form class="panel form-panel" id="issueForm">
+          <div class="panel-head"><h3>เพิ่ม Risk / Issue</h3><span>สิ่งที่เสี่ยงทำให้ปิดคลังไม่ทัน</span></div>
+          <label><span>คลัง</span><select name="Warehouse ID" id="issueWarehouseSelect"></select></label>
+          <label><span>Task ID</span><input name="Task ID" /></label>
+          <label class="full"><span>หัวข้อปัญหา</span><input name="Issue Title" required /></label>
+          <label><span>ผลกระทบ</span><input name="Impact" /></label>
+          <label><span>Owner</span><input name="Owner" /></label>
+          <label><span>Status</span><select name="Status"><option>Open</option><option>Monitoring</option><option>Resolved</option></select></label>
+          <label><span>Priority</span><select name="Priority" data-setting="Priority"></select></label>
+          <label><span>Due Date</span><input type="date" name="Due Date" /></label>
+          <label class="full"><span>แนวทางแก้ไข</span><textarea name="Solution"></textarea></label>
+          <button class="btn primary wide" type="submit">บันทึก Issue</button>
+        </form>
+        <div class="panel"><div class="panel-head"><h3>Issue Board</h3><span>Open risks</span></div><div id="issuesList"></div></div>
       </div>
     </section>
 
-    <section id="documents" class="view">
-      <div class="grid2">
-        <div class="card form-card"><h3>เพิ่มเอกสาร</h3>
-          <form id="docForm" class="form one">
-            <label>คลัง<select name="warehouseId" id="docWarehouse"></select></label>
-            <label>Task ID<input name="taskId"></label>
-            <label>ประเภทเอกสาร<select name="documentType" data-list="documentTypes"></select></label>
-            <label>ชื่อเอกสาร *<input name="documentName" required></label>
-            <label>ลิงก์ไฟล์ *<input name="fileLink" required></label>
-            <label>สถานะเอกสาร<select name="documentStatus" data-list="documentStatuses"></select></label>
-            <label>ผู้อัปโหลด<input name="uploadedBy"></label>
-            <label>หมายเหตุ<textarea name="notes"></textarea></label>
-            <button class="btn">บันทึกเอกสาร</button>
-          </form>
+    <section class="view" id="checklistView">
+      <div class="panel form-panel">
+        <div class="panel-head"><h3>Checklist ปิดคลังอัตโนมัติ</h3><span>สร้างงานมาตรฐาน 7 เฟสจาก template</span></div>
+        <div class="form-grid">
+          <label><span>เลือกคลัง</span><select id="checklistWarehouse"></select></label>
+          <label><span>เริ่ม Due Date จากวันที่</span><input type="date" id="checklistStartDate" /></label>
+          <label><span>Default Assignee</span><input id="checklistAssignee" /></label>
         </div>
-        <div class="card"><h3>ทะเบียนเอกสาร</h3><div id="docTable"></div></div>
+        <button class="btn primary wide" onclick="createChecklist()" type="button">สร้าง Checklist ทั้งชุด</button>
       </div>
+      <div class="panel"><div class="panel-head"><h3>Template ปัจจุบัน</h3><span>Checklist_Templates</span></div><div id="templateList"></div></div>
     </section>
 
-    <section id="calendar" class="view">
-      <div class="calendar-shell">
-        <div class="card form-card calendar-form-card"><h3>เพิ่มแผนงาน / แจ้งเตือน</h3>
-          <form id="calForm" class="form one">
-            <label>คลัง<select name="warehouseId" id="calWarehouse"></select></label>
-            <label>Task ID<input name="taskId" placeholder="เช่น T-0001 ถ้าเกี่ยวกับงาน"></label>
-            <label>หัวข้อ *<input name="eventTitle" required placeholder="เช่น นัดตรวจพื้นที่ / ตามเอกสาร / Vendor เข้าหน้างาน"></label>
-            <label>ประเภท<select name="eventType" data-list="eventTypes"></select></label>
-            <label>วันเริ่ม<input type="date" name="startDate"></label>
-            <label>วันครบกำหนด *<input type="date" name="dueDate" required></label>
-            <label>ผู้รับผิดชอบ<input name="assignee"></label>
-            <label>เตือนล่วงหน้า<input type="number" name="reminderDays" value="2" min="0"></label>
-            <label>สถานะเตือน<select name="calendarStatus" data-list="calendarStatuses"></select></label>
-            <label class="full">หมายเหตุ<textarea name="notes" placeholder="รายละเอียดที่ต้องตาม เช่น โทรหาใคร เอกสารอะไร ข้อควรระวัง"></textarea></label>
-            <button class="btn">บันทึกแผนงาน</button>
-          </form>
-        </div>
-        <div class="card calendar-card">
-          <div class="calendar-toolbar">
-            <div>
-              <h3>ปฏิทินงานรายเดือน</h3>
-              <small>กดที่วันที่หรือการ์ดงานเพื่อดูรายละเอียด / เปิดงานที่เกี่ยวข้อง</small>
-            </div>
-            <div class="calendar-actions">
-              <button id="calPrev" class="btn light" type="button">‹</button>
-              <input id="calendarMonth" type="month">
-              <button id="calNext" class="btn light" type="button">›</button>
-            </div>
-          </div>
-          <div class="calendar-filters">
-            <select id="calendarWhFilter"></select>
-            <select id="calendarTypeFilter"></select>
-            <select id="calendarUrgencyFilter">
-              <option value="">ทุกช่วงเวลา</option>
-              <option value="today">วันนี้</option>
-              <option value="week">7 วันข้างหน้า</option>
-              <option value="overdue">เลยกำหนด</option>
-            </select>
-          </div>
-          <div class="month-grid" id="calendarMonthGrid"></div>
-          <div class="calendar-side">
-            <h4 id="selectedDayTitle">รายการที่เลือก</h4>
-            <div id="selectedDayList"></div>
-          </div>
+    <section class="view" id="reportsView">
+      <div class="panel">
+        <div class="panel-head split"><div><h3>รายงานอัตโนมัติ</h3><span>Copy ไปส่ง LINE / Email / ผู้บริหารได้ทันที</span></div><button class="btn primary" onclick="copyReport()">Copy Report</button></div>
+        <textarea id="reportBox" class="report-box" readonly></textarea>
+        <div class="report-actions">
+          <button class="btn ghost" onclick="renderReports()">Refresh Report</button>
+          <button class="btn ghost" onclick="downloadReport()">Download .txt</button>
         </div>
       </div>
     </section>
 
-    <section id="activity" class="view">
-      <div class="card"><h3>Activity Log</h3><div id="logTable"></div></div>
+    <section class="view" id="activityView">
+      <div class="panel table-panel"><div class="panel-head"><h3>Activity Log</h3><span>ทุก action ที่เกิดขึ้นในระบบ</span></div><div id="activityTable"></div></div>
     </section>
 
-    <section id="settings" class="view">
-      <div class="grid2 settings-grid">
-        <div class="card form-card">
-          <h3>ตั้งค่าเชื่อมต่อ</h3>
-          <div class="form one">
-            <label>Spreadsheet ID<input id="sheetId"></label>
-            <label>Apps Script URL /exec<input id="apiUrl" placeholder="https://script.google.com/macros/s/xxxxx/exec"></label>
-            <button id="saveConfig" class="btn">บันทึก</button>
-            <button id="testApi" class="btn light">ทดสอบ API</button>
-          </div>
-        </div>
+    <section class="view" id="trashView">
+      <div class="panel table-panel"><div class="panel-head"><h3>ถังขยะ / Soft Delete</h3><span>ข้อมูลที่ลบจะถูกเก็บ snapshot ไว้</span></div><div id="trashTable"></div></div>
+    </section>
 
-        <div class="card form-card">
-          <h3>ตั้งค่าการใช้งาน</h3>
-          <div class="form one">
-            <label>ชื่อผู้ใช้งานเริ่มต้น<input id="defaultUser" placeholder="เช่น Earth / Operation Team"></label>
-            <label>เตือนล่วงหน้าเริ่มต้น (วัน)<input id="defaultReminderDays" type="number" min="0" value="2"></label>
-            <label>ช่วงมองงานใกล้ครบกำหนดใน Dashboard (วัน)<input id="lookAheadDays" type="number" min="1" value="7"></label>
-            <label class="check"><input id="autoCalendarFromTask" type="checkbox"> เพิ่มงานลงปฏิทินอัตโนมัติเมื่อมี Due Date</label>
-            <button id="savePreferences" class="btn" type="button">บันทึกค่าการใช้งาน</button>
-          </div>
+    <section class="view" id="settingsView">
+      <div class="split-layout">
+        <div class="panel form-panel">
+          <div class="panel-head"><h3>เชื่อมต่อ Google Sheet</h3><span>Apps Script Web App URL ต้องลงท้าย /exec</span></div>
+          <label><span>Spreadsheet ID</span><input id="settingSheetId" /></label>
+          <label><span>Apps Script URL</span><input id="settingApiUrl" placeholder="https://script.google.com/macros/s/.../exec" /></label>
+          <button class="btn primary wide" onclick="saveConnection()" type="button">บันทึกการเชื่อมต่อ</button>
+          <button class="btn ghost wide" onclick="testConnection()" type="button">ทดสอบ API</button>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="head">
-          <div>
-            <h3>ตั้งค่า Dropdown / ตัวเลือกระบบ</h3>
-            <small>เพิ่มตัวเลือกแล้วจะไปบันทึกที่ชีต Settings และถูกใช้กับฟอร์มต่าง ๆ ทันทีหลัง Refresh</small>
-          </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Dropdown Settings</h3><span>อ่านจาก Sheet: Settings</span></div>
+          <div id="settingsLists" class="settings-lists"></div>
         </div>
-        <div id="settingsLists" class="settings-lists"></div>
       </div>
     </section>
   </main>
-</div>
 
-<dialog id="statusDialog">
-  <form id="statusForm" method="dialog" class="dialog">
-    <h3>แก้สถานะ</h3>
-    <input type="hidden" name="taskId">
-    <p id="statusInfo"></p>
-    <label>สถานะใหม่<select name="status" data-list="taskStatuses"></select></label>
-    <label>ความคืบหน้า %<input name="progress" type="number" min="0" max="100"></label>
-    <label>ผู้ทำรายการ<input name="user"></label>
-    <label>หมายเหตุ<textarea name="notes"></textarea></label>
-    <div class="actions"><button value="cancel" class="btn light">ยกเลิก</button><button id="saveStatus" class="btn">บันทึก</button></div>
-  </form>
-</dialog>
+  <div class="toast" id="toast"></div>
 
-<dialog id="calendarDetailDialog">
-  <form method="dialog" class="dialog calendar-detail-dialog">
-    <h3 id="calendarDetailTitle">รายละเอียดปฏิทิน</h3>
-    <div id="calendarDetailBody"></div>
-    <div class="actions">
-      <button value="cancel" class="btn light">ปิด</button>
-      <button id="calendarDetailDeleteBtn" class="btn danger" type="button">ลบแผนงาน</button>
-      <button id="calendarDetailTaskBtn" class="btn" type="button">เปิดงานที่เกี่ยวข้อง</button>
-    </div>
-  </form>
-</dialog>
+  <dialog id="detailDialog" class="dialog">
+    <button class="dialog-close" onclick="closeDialog()">×</button>
+    <div id="dialogContent"></div>
+  </dialog>
 
-<div id="toast"></div>
-<script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

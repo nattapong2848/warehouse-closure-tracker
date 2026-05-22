@@ -1,459 +1,299 @@
 
 const DEFAULT_SHEET_ID = "1gNnjKeqxaE6TtCOOXOqnaG_E0v5dQtUmE_KfLgoo6hI";
 const CONFIG = {
-  sheetId: localStorage.getItem("spx_sheet_id") || DEFAULT_SHEET_ID,
+  spreadsheetId: localStorage.getItem("spx_sheet_id") || DEFAULT_SHEET_ID,
   apiUrl: localStorage.getItem("spx_api_url") || ""
 };
-
-const defaults = {
-  taskStatuses:["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"],
-  priorities:["สูงมาก","สูง","กลาง","ต่ำ"],
-  warehouseStatuses:["ยังไม่เริ่ม","กำลังปิดคลัง","รอส่งมอบ","ส่งมอบแล้ว","ปิดโครงการแล้ว"],
-  phases:["เฟส 1 · ตรวจสัญญาและแจ้งเลิก","เฟส 2 · วางแผนและตั้งทีม","เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","เฟส 4 · ยกเลิก Vendor และสาธารณูปโภค","เฟส 5 · คืนสภาพพื้นที่","เฟส 6 · ส่งมอบพื้นที่","เฟส 7 · ปิดการเงินและเงินประกัน"],
-  documentTypes:["สัญญาเช่า","ใบส่งมอบพื้นที่","รูปภาพพื้นที่","ใบเสนอราคา","Invoice / PO","อื่น ๆ"],
-  documentStatuses:["รอตรวจสอบ","ผ่าน","ต้องแก้ไข"],
-  eventTypes:["กำหนดส่งงาน","นัดหมาย","ตรวจพื้นที่","ติดตามเอกสาร","แจ้งเตือน"]
+const STATE = {
+  warehouses: [], tasks: [], documents: [], calendar: [], activity: [], settings: {},
+  issues: [], templates: [], trash: [], selectedWarehouse: localStorage.getItem("last_selected_warehouse") || "",
+  calendarDate: new Date()
 };
-const state = {warehouses:[],tasks:[],documents:[],calendar:[],activityLog:[],settings:{...defaults},calendarMonth:new Date().toISOString().slice(0,7),selectedCalendarDate:null,currentCalendarItemKey:null};
-const settingsMeta = {
-  taskStatuses:{label:"สถานะงาน", col:"A"},
-  priorities:{label:"ความสำคัญ", col:"B"},
-  warehouseStatuses:{label:"สถานะคลัง", col:"C"},
-  phases:{label:"เฟสงาน", col:"D"},
-  documentTypes:{label:"ประเภทเอกสาร", col:"E"},
-  documentStatuses:{label:"สถานะเอกสาร", col:"F"},
-  eventTypes:{label:"ประเภทแผนงาน", col:"G"},
-  calendarStatuses:{label:"สถานะเตือน", col:"H"}
+const SHEETS = {
+  warehouses: "Warehouses", tasks: "Tasks", documents: "Documents", calendar: "Calendar",
+  activity: "Activity_Log", issues: "Issues", templates: "Checklist_Templates", trash: "Trash", settings: "Settings"
 };
-const appPrefs = () => ({
-  defaultUser: localStorage.getItem("spx_user") || "",
-  defaultReminderDays: Number(localStorage.getItem("spx_default_reminder_days") || 2),
-  lookAheadDays: Number(localStorage.getItem("spx_lookahead_days") || 7),
-  autoCalendarFromTask: localStorage.getItem("spx_auto_calendar") === "1"
-});
-const demo = {
-  warehouses:[{warehouseId:"WH-0001",warehouseName:"คลังตัวอย่าง",locationZone:"บางนา / โซน A",owner:"Owner ตัวอย่าง",ownerPhone:"",startDate:"2026-05-22",targetHandoverDate:"2026-06-30",warehouseStatus:"กำลังปิดคลัง",documentFolderLink:"",notes:"Demo"}],
-  tasks:[{taskId:"T-0001",createdDate:"2026-05-22",warehouseId:"WH-0001",phase:"เฟส 1 · ตรวจสัญญาและแจ้งเลิก",taskName:"ตรวจสัญญาเช่า",assignee:"Owner ตัวอย่าง",status:"กำลังดำเนินการ",priority:"สูง",dueDate:"2026-05-30",progress:"25",closedDate:"",evidenceLink:"",lastUpdated:"",notes:"Demo"}],
-  documents:[],calendar:[],activityLog:[]
+const HEADERS = {
+  Warehouses:["Warehouse ID","Warehouse Name","Location / Zone","Owner","Owner Phone","Start Date","Target Handover Date","Warehouse Status","Document Folder Link","Notes","Created At","Updated At"],
+  Tasks:["Task ID","Created Date","Warehouse ID","Phase","Task Name","Assignee","Status","Priority","Due Date","Progress %","Closed Date","Evidence Link","Last Updated","Notes"],
+  Documents:["Document ID","Warehouse ID","Task ID","Document Type","Document Name","File Link","Document Status","Uploaded By","Uploaded Date","Notes"],
+  Calendar:["Event ID","Warehouse ID","Task ID","Event Title","Event Type","Start Date","Due Date","Assignee","Reminder Days","Calendar Status","Notes"],
+  Issues:["Issue ID","Warehouse ID","Task ID","Issue Title","Impact","Owner","Status","Priority","Due Date","Solution","Created Date","Closed Date","Notes"],
+  Activity_Log:["Log ID","Timestamp","Action","Sheet","Record ID","Warehouse ID","User","Details"],
+  Trash:["Trash ID","Timestamp","Source Sheet","Record ID","Warehouse ID","Deleted By","Reason","Snapshot JSON"]
 };
-const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
-
-document.addEventListener("DOMContentLoaded",()=>{
-  initEffects();
-  tickClock();
-  setInterval(tickClock, 1000);
-  bindNav(); bindForms(); initConfig(); loadAll();
-});
-
-function initEffects(){
-  const field=$("#particleField");
-  if(field && !field.dataset.ready){
-    field.dataset.ready="1";
-    for(let i=0;i<46;i++){
-      const p=document.createElement("span");
-      p.className="particle";
-      p.style.left=Math.random()*100+"vw";
-      p.style.setProperty("--dx",(Math.random()*120-60)+"px");
-      p.style.animationDuration=(8+Math.random()*14)+"s";
-      p.style.animationDelay=(-Math.random()*18)+"s";
-      p.style.opacity=(.22+Math.random()*.55).toFixed(2);
-      field.appendChild(p);
+const $ = (id)=>document.getElementById(id);
+const todayISO = () => new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const safe = v => (v ?? "").toString().trim();
+const pct = n => Math.max(0, Math.min(100, Number(n)||0));
+const byId = (arr, field, id) => arr.find(x=>safe(x[field])===safe(id));
+const whName = id => byId(STATE.warehouses,"Warehouse ID",id)?.["Warehouse Name"] || id || "-";
+const whObj = id => byId(STATE.warehouses,"Warehouse ID",id) || {};
+const statusClass = s => {
+  s=safe(s); if(["ปิดแล้ว","เสร็จสิ้น","Resolved"].includes(s)) return "green";
+  if(["ติดขัด","เลยกำหนด","Open"].includes(s)) return "red";
+  if(["รอเอกสาร","รอ Vendor","Monitoring"].includes(s)) return "violet";
+  if(["กำลังดำเนินการ","To Do"].includes(s)) return "orange";
+  return "blue";
+};
+const isClosed = t => ["ปิดแล้ว","เสร็จสิ้น","Closed","Resolved"].includes(safe(t.Status || t["Warehouse Status"]));
+const parseDate = v => {
+  v = safe(v); if(!v) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(v)) return new Date(v.slice(0,10)+"T00:00:00");
+  const d = new Date(v); return isNaN(d) ? null : d;
+};
+const daysBetween = (a,b)=> Math.floor((parseDate(a)-parseDate(b))/(86400000));
+function toast(msg){ const el=$("toast"); el.textContent=msg; el.classList.add("show"); clearTimeout(window.toastT); window.toastT=setTimeout(()=>el.classList.remove("show"),2800); }
+function setConnected(ok){ const b=$("syncBox"); b.classList.toggle("connected",!!ok); $("syncTitle").textContent = ok ? "เชื่อมต่อแล้ว" : "Demo Mode"; $("syncSub").textContent = ok ? "Google Sheet Sync" : "Local Preview"; $("missionPulse").textContent = ok ? "Live API online" : "Awaiting API URL"; }
+function apiUrl(){ return safe(CONFIG.apiUrl); }
+async function apiGet(action="getAllData", params={}) {
+  if(!apiUrl()) throw new Error("NO_API_URL");
+  const url = new URL(apiUrl());
+  url.searchParams.set("action", action);
+  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+  const res = await fetch(url.toString());
+  const json = await res.json();
+  if(!json.success) throw new Error(json.message || "API error");
+  return json.data;
+}
+async function apiPost(action, payload={}) {
+  if(!apiUrl()) throw new Error("NO_API_URL");
+  const res = await fetch(apiUrl(), { method:"POST", body: JSON.stringify({action, ...payload}) });
+  const json = await res.json();
+  if(!json.success) throw new Error(json.message || "API error");
+  return json.data || json;
+}
+function demoData(){
+  return {
+    warehouses:[
+      {"Warehouse ID":"WH-0001","Warehouse Name":"The Angel Clinic","Location / Zone":"ปทุมธานี","Owner":"Earth","Owner Phone":"0864080008","Start Date":todayISO(),"Target Handover Date":"2026-05-31","Warehouse Status":"กำลังปิดคลัง","Document Folder Link":"","Notes":"Demo warehouse"}
+    ],
+    tasks:[
+      {"Task ID":"T-0001","Created Date":todayISO(),"Warehouse ID":"WH-0001","Phase":"เฟส 1 · ตรวจสัญญาและแจ้งเลิก","Task Name":"ตรวจสัญญาเช่า","Assignee":"Earth","Status":"กำลังดำเนินการ","Priority":"สูง","Due Date":todayISO(),"Progress %":"30","Evidence Link":"","Last Updated":todayISO(),"Notes":"งานตัวอย่าง"},
+      {"Task ID":"T-0002","Created Date":todayISO(),"Warehouse ID":"WH-0001","Phase":"เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","Task Name":"ตรวจนับทรัพย์สิน","Assignee":"Earth","Status":"รอเอกสาร","Priority":"สูงมาก","Due Date":todayISO(),"Progress %":"10","Evidence Link":"","Last Updated":todayISO(),"Notes":"รอรายการทรัพย์สิน"}
+    ],
+    documents:[{"Document ID":"DOC-0001","Warehouse ID":"WH-0001","Task ID":"T-0001","Document Type":"สัญญาเช่า","Document Name":"สัญญาเช่า","File Link":"","Document Status":"รอตรวจสอบ","Uploaded By":"Earth","Uploaded Date":todayISO(),"Notes":""}],
+    calendar:[{"Event ID":"EV-0001","Warehouse ID":"WH-0001","Task ID":"T-0001","Event Title":"ตรวจสัญญาเช่า","Event Type":"กำหนดส่งงาน","Start Date":todayISO(),"Due Date":todayISO(),"Assignee":"Earth","Reminder Days":"2","Calendar Status":"ยังไม่เตือน","Notes":""}],
+    activity:[], issues:[], trash:[],
+    templates:[
+      {"Template ID":"TPL-001","Phase":"เฟส 1 · ตรวจสัญญาและแจ้งเลิก","Task Name":"ตรวจสัญญาเช่าและสรุปเงื่อนไขสำคัญ","Default Assignee":"","Priority":"สูง","Default Status":"To Do","Default Due Offset Days":"3","Document Required":"สัญญาเช่า","Notes":""},
+      {"Template ID":"TPL-002","Phase":"เฟส 5 · คืนสภาพพื้นที่","Task Name":"ทำ Defect List และคืนสภาพพื้นที่","Default Assignee":"","Priority":"สูงมาก","Default Status":"To Do","Default Due Offset Days":"18","Document Required":"รูปภาพพื้นที่","Notes":""}
+    ],
+    settings:{
+      "Task Status":["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"],
+      "Priority":["สูงมาก","สูง","กลาง","ต่ำ"],"Warehouse Status":["ยังไม่เริ่ม","กำลังปิดคลัง","รอส่งมอบ","ส่งมอบแล้ว","ปิดโครงการแล้ว"],
+      "Phase":["เฟส 1 · ตรวจสัญญาและแจ้งเลิก","เฟส 2 · วางแผนและตั้งทีม","เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","เฟส 4 · ยกเลิก Vendor และสาธารณูปโภค","เฟส 5 · คืนสภาพพื้นที่","เฟส 6 · ส่งมอบพื้นที่","เฟส 7 · ปิดการเงินและเงินประกัน"],
+      "Document Type":["สัญญาเช่า","ใบส่งมอบพื้นที่","รูปภาพพื้นที่","ใบเสนอราคา","Invoice / PO","อื่น ๆ"], "Document Status":["รอตรวจสอบ","ผ่าน","ต้องแก้ไข"],
+      "Event Type":["กำหนดส่งงาน","นัดหมาย","ตรวจพื้นที่","ติดตามเอกสาร","แจ้งเตือน"], "Calendar Status":["ยังไม่เตือน","เตือนแล้ว","เสร็จสิ้น","ยกเลิก"]
     }
-  }
-}
-function tickClock(){
-  const el=$("#liveClock");
-  if(!el)return;
-  el.textContent=new Intl.DateTimeFormat("th-TH",{timeZone:"Asia/Bangkok",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date());
-}
-
-function bindNav(){
-  $$(".nav").forEach(b=>b.onclick=()=>show(b.dataset.view));
-  $$("[data-go]").forEach(b=>b.onclick=()=>show(b.dataset.go));
-  $("#refreshBtn").onclick=loadAll;
-}
-function show(v){
-  $$(".nav").forEach(b=>b.classList.toggle("active",b.dataset.view===v));
-  $$(".view").forEach(x=>x.classList.remove("active"));
-  $("#"+v)?.classList.add("active");
-  $("#title").textContent = document.querySelector(`[data-view="${v}"]`)?.textContent || "Dashboard";
-}
-function initConfig(){
-  if($("#sheetId")) $("#sheetId").value=CONFIG.sheetId;
-  if($("#apiUrl")) $("#apiUrl").value=CONFIG.apiUrl;
-  const prefs=appPrefs();
-  if($("#defaultUser")) $("#defaultUser").value=prefs.defaultUser;
-  if($("#defaultReminderDays")) $("#defaultReminderDays").value=prefs.defaultReminderDays;
-  if($("#lookAheadDays")) $("#lookAheadDays").value=prefs.lookAheadDays;
-  if($("#autoCalendarFromTask")) $("#autoCalendarFromTask").checked=prefs.autoCalendarFromTask;
-  $("#saveConfig").onclick=()=>{CONFIG.sheetId=$("#sheetId").value.trim();CONFIG.apiUrl=$("#apiUrl").value.trim();localStorage.setItem("spx_sheet_id",CONFIG.sheetId);localStorage.setItem("spx_api_url",CONFIG.apiUrl);toast("บันทึกการเชื่อมต่อแล้ว");loadAll();};
-  $("#testApi").onclick=async()=>{const r=await apiGet("ping");toast(r?.success?"API ใช้งานได้":"ยังเชื่อมต่อไม่ได้");};
-  if($("#savePreferences")) $("#savePreferences").onclick=()=>{
-    localStorage.setItem("spx_user",$("#defaultUser").value.trim());
-    localStorage.setItem("spx_default_reminder_days",$("#defaultReminderDays").value || 2);
-    localStorage.setItem("spx_lookahead_days",$("#lookAheadDays").value || 7);
-    localStorage.setItem("spx_auto_calendar",$("#autoCalendarFromTask").checked ? "1" : "0");
-    toast("บันทึกค่าการใช้งานแล้ว");
-    dashboard(); calendar();
   };
 }
-async function apiGet(action){
-  if(!CONFIG.apiUrl)return null;
-  const url=new URL(CONFIG.apiUrl); url.searchParams.set("action",action); url.searchParams.set("spreadsheetId",CONFIG.sheetId);
-  return fetch(url).then(r=>r.json());
+function applyData(data){
+  Object.assign(STATE, {
+    warehouses:data.warehouses||[], tasks:data.tasks||[], documents:data.documents||[], calendar:data.calendar||[],
+    activity:data.activity||[], settings:data.settings||{}, issues:data.issues||[], templates:data.templates||[], trash:data.trash||[]
+  });
+  fillDynamicSelects(); renderAll();
 }
-async function apiPost(action,payload){
-  if(!CONFIG.apiUrl){toast("ยังไม่ได้ใส่ Apps Script URL");return {success:false};}
-  return fetch(CONFIG.apiUrl,{method:"POST",body:JSON.stringify({action,spreadsheetId:CONFIG.sheetId,...payload})}).then(r=>r.json());
-}
-async function loadAll(){
-  setConn(false,"กำลังโหลด...");
+async function loadAllData(show=false){
   try{
-    const r=await apiGet("getAllData");
-    if(r?.success){Object.assign(state,r.data);state.settings={...defaults,...(r.data.settings||{})};setConn(true,"เชื่อมต่อแล้ว");}
-    else{Object.assign(state,demo);state.settings={...defaults};setConn(false,"Demo Mode");}
-  }catch(e){console.error(e);Object.assign(state,demo);state.settings={...defaults};setConn(false,"Demo Mode");}
-  renderAll();
-}
-function setConn(ok,text){$("#connDot").classList.toggle("ok",ok);$("#connText").textContent=text;}
-function renderAll(){dropdowns();dashboard();warehouseStatus();warehouses();tasks();documents();calendar();logs();renderSettingsLists();}
-function dropdowns(){
-  fillWh("#warehouseSelect",true); fillWh("#taskWarehouse"); fillWh("#docWarehouse"); fillWh("#calWarehouse"); fillWh("#taskFilterWh",true,"ทุกคลัง"); fillWh("#calendarWhFilter",true,"ทุกคลัง");
-  fill("#taskFilterStatus",["",...state.settings.taskStatuses],"ทุกสถานะ"); fill("#taskFilterPriority",["",...state.settings.priorities],"ทุกความสำคัญ");
-  fill("#calendarTypeFilter",["",...state.settings.eventTypes,"Task Due"],"ทุกประเภท");
-  fill("#warehouseStatusFilter",["",...state.settings.warehouseStatuses],"ทุกสถานะคลัง");
-  $$("[data-list]").forEach(el=>{fillEl(el,state.settings[el.dataset.list]||[]);});
-  const m=$("#calendarMonth"); if(m && !m.value) m.value=state.calendarMonth;
-}
-function fillWh(sel,blank=false,blankText="เลือกคลัง"){const e=$(sel); if(!e)return; e.innerHTML=""; if(blank)e.add(new Option(blankText,"")); state.warehouses.forEach(w=>e.add(new Option(`${w.warehouseId} · ${w.warehouseName}`,w.warehouseId)));}
-function fill(sel,arr,blankText){const e=$(sel); if(!e)return; e.innerHTML=""; arr.forEach((v,i)=>e.add(new Option(i===0&&v===""?blankText:v,v)));}
-function fillEl(e,arr){const old=e.value;e.innerHTML="";arr.filter(Boolean).forEach(v=>e.add(new Option(v,v)));if(old)e.value=old;}
-function dashboard(){
-  const total=state.tasks.length, closed=state.tasks.filter(t=>t.status==="ปิดแล้ว").length, overdue=state.tasks.filter(overdueTask).length, docs=state.documents.length;
-  const running=state.tasks.filter(t=>["กำลังดำเนินการ","รอเอกสาร","รอ Vendor"].includes(t.status)).length;
-  const avg=total?Math.round(state.tasks.reduce((s,t)=>s+Number(t.progress||0),0)/total):0;
-  const k=[
-    {label:"คลังทั้งหมด",value:state.warehouses.length,icon:"🏢",hint:"Warehouse profiles"},
-    {label:"งานทั้งหมด",value:total,icon:"📦",hint:"Total tasks"},
-    {label:"กำลังเดิน",value:running,icon:"🚚",hint:"In motion"},
-    {label:"ปิดแล้ว",value:closed,icon:"✅",hint:"Completed"},
-    {label:"เลยกำหนด",value:overdue,icon:"🔥",hint:"Need action"},
-    {label:"ความคืบหน้า",value:avg+"%",icon:"📈",hint:"Average progress"}
-  ];
-  $("#kpis").innerHTML=k.map(x=>`<div class="kpi"><i>${x.icon}</i><span>${x.label}</span><strong>${x.value}</strong><em>${x.hint}</em></div>`).join("");
-  const heroProgress=$("#heroProgress"); if(heroProgress) heroProgress.textContent=avg+"%";
-  const heroSummary=$("#heroSummary"); if(heroSummary) heroSummary.textContent=`${state.warehouses.length} คลัง · ${total} งาน · ${overdue} งานต้องเร่ง`;
-  const c=countBy(state.tasks,"status");
-  $("#statusBars").innerHTML=Object.entries(c).map(([s,n])=>`<div class="barrow"><span>${s}</span><div class="track"><div class="fill" style="width:${total?Math.round(n/total*100):0}%"></div></div><b>${n}</b></div>`).join("")||empty("ยังไม่มีงาน");
-  const follow=state.tasks.filter(t=>overdueTask(t)||soon(t)||["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status));
-  $("#todayTasks").innerHTML=follow.map(cardTask).join("")||empty("ยังไม่มีงานที่ต้องตาม");
-}
-
-function warehouseStatus(){
-  const board = $("#warehouseStatusBoard");
-  if(!board) return;
-  const q=($("#warehouseStatusSearch")?.value||"").toLowerCase().trim();
-  const statusFilter=$("#warehouseStatusFilter")?.value||"";
-  const workFilter=$("#warehouseWorkFilter")?.value||"";
-  let rows=state.warehouses.slice();
-  if(q){
-    rows=rows.filter(w=>[w.warehouseId,w.warehouseName,w.locationZone,w.owner,w.ownerPhone,w.warehouseStatus].join(" ").toLowerCase().includes(q));
+    const data = await apiGet("getAllData");
+    applyData(data); setConnected(true); if(show) toast("โหลดข้อมูลล่าสุดแล้ว");
+  }catch(e){
+    if(!apiUrl() || e.message==="NO_API_URL"){ applyData(demoData()); setConnected(false); if(show) toast("ยังไม่ได้เชื่อม Apps Script - ใช้ Demo Mode"); }
+    else { console.error(e); toast("โหลดข้อมูลไม่สำเร็จ: "+e.message); }
   }
-  if(statusFilter) rows=rows.filter(w=>w.warehouseStatus===statusFilter);
-  if(workFilter){
-    rows=rows.filter(w=>{
-      const m=warehouseMetrics(w.warehouseId);
-      if(workFilter==="pending") return m.pending>0;
-      if(workFilter==="overdue") return m.overdue>0;
-      if(workFilter==="blocked") return m.blocked>0;
-      if(workFilter==="done") return m.total>0 && m.pending===0;
-      return true;
-    });
-  }
-  board.innerHTML = rows.length ? rows.map(warehouseStatusCard).join("") : empty("ไม่พบคลังตามเงื่อนไข");
 }
-function warehouseMetrics(warehouseId){
-  const ts=state.tasks.filter(t=>t.warehouseId===warehouseId);
-  const total=ts.length;
-  const closed=ts.filter(t=>t.status==="ปิดแล้ว").length;
-  const overdue=ts.filter(overdueTask).length;
-  const blocked=ts.filter(t=>["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status)).length;
-  const pending=ts.filter(t=>t.status!=="ปิดแล้ว").length;
-  const progress=total?Math.round(ts.reduce((sum,t)=>sum+Number(t.progress||0),0)/total):0;
-  const nextDue=ts.filter(t=>t.status!=="ปิดแล้ว"&&t.dueDate).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))[0]?.dueDate||"-";
-  return {tasks:ts,total,closed,overdue,blocked,pending,progress,nextDue};
+function fillDynamicSelects(){
+  document.querySelectorAll("[data-setting]").forEach(sel=>{
+    const key = sel.dataset.setting;
+    const options = STATE.settings[key] || demoData().settings[key] || [];
+    sel.innerHTML = options.map(o=>`<option value="${o}">${o}</option>`).join("");
+  });
+  const whOpts = [`<option value="">เลือกคลัง</option>`].concat(STATE.warehouses.map(w=>`<option value="${safe(w["Warehouse ID"])}">${safe(w["Warehouse Name"])} (${safe(w["Warehouse ID"])})</option>`)).join("");
+  ["taskWarehouseSelect","docWarehouseSelect","calWarehouseSelect","issueWarehouseSelect","checklistWarehouse"].forEach(id=>{ if($(id)) $(id).innerHTML=whOpts; });
+  const whFilter = $("taskWarehouseFilter"); if(whFilter) whFilter.innerHTML = `<option value="">ทุกคลัง</option>` + STATE.warehouses.map(w=>`<option value="${w["Warehouse ID"]}">${w["Warehouse Name"]}</option>`).join("");
+  const whStatus = $("warehouseStatusFilter"); if(whStatus) whStatus.innerHTML = `<option value="">ทุกสถานะคลัง</option>` + (STATE.settings["Warehouse Status"]||[]).map(x=>`<option>${x}</option>`).join("");
+  const ts = $("taskStatusFilter"); if(ts) ts.innerHTML = `<option value="">ทุกสถานะ</option>` + (STATE.settings["Task Status"]||[]).map(x=>`<option>${x}</option>`).join("");
 }
-function warehouseStatusCard(w){
-  const m=warehouseMetrics(w.warehouseId);
-  const pendingTasks=m.tasks.filter(t=>t.status!=="ปิดแล้ว");
-  const critical=pendingTasks.filter(t=>overdueTask(t)||["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status));
-  const shown=(critical.length?critical:pendingTasks).slice(0,5);
-  const statusClass=m.overdue?"danger":m.blocked?"warn":m.pending?"active":"done";
-  return `<article class="warehouse-status-card ${statusClass}">
-    <div class="ws-top">
-      <div>
-        <span class="ws-code">${esc(w.warehouseId||"-")}</span>
-        <h3>${esc(w.warehouseName||"ไม่ระบุชื่อคลัง")}</h3>
-        <small>${esc(w.locationZone||"-")} · Owner: ${esc(w.owner||"-")}</small>
-      </div>
-      <div class="ws-ring" style="--p:${m.progress}"><b>${m.progress}%</b><small>progress</small></div>
-    </div>
-    <div class="ws-metrics">
-      <div><b>${m.total}</b><span>งานทั้งหมด</span></div>
-      <div><b>${m.pending}</b><span>งานค้าง</span></div>
-      <div><b>${m.overdue}</b><span>เลยกำหนด</span></div>
-      <div><b>${m.nextDue}</b><span>Due ถัดไป</span></div>
-    </div>
-    <div class="ws-status-line"><span class="badge ${badgeClass(w.warehouseStatus)}">${esc(w.warehouseStatus||"ไม่ระบุสถานะคลัง")}</span><span>${m.closed}/${m.total} งานปิดแล้ว</span></div>
-    <div class="pending-list">
-      <b>งานที่ยังต้องตาม</b>
-      ${shown.length?shown.map(t=>`<div class="pending-task ${overdueTask(t)?'late':''}"><div><strong>${esc(t.taskId)} · ${esc(t.taskName)}</strong><small>${esc(t.status||'-')} · ${esc(t.assignee||'-')} · Due ${esc(t.dueDate||'-')} · ${Number(t.progress||0)}%</small></div><button class="mini" onclick="openStatus('${t.taskId}')">แก้</button></div>`).join(""):`<p class="all-clear">ไม่มีงานค้าง 🎉</p>`}
-      ${pendingTasks.length>shown.length?`<small class="more-pending">ยังมีงานค้างอีก ${pendingTasks.length-shown.length} รายการ</small>`:""}
-    </div>
-    <div class="ws-actions">
-      <button class="mini" onclick="openWarehouseProfile('${w.warehouseId}')">ดูโปรไฟล์</button>
-      <button class="mini" onclick="filterTasksByWarehouse('${w.warehouseId}')">ดูงานทั้งหมด</button>
-      <button class="mini" onclick="prefillTaskWarehouse('${w.warehouseId}')">+ เพิ่มงาน</button>
-      <button class="mini danger" onclick="confirmDelete('warehouse','${w.warehouseId}','คลัง ${esc(w.warehouseName||w.warehouseId)}')">ลบ</button>
-    </div>
+function openView(name){
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  const view = $(name+"View"); if(view) view.classList.add("active");
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active", b.dataset.view===name));
+  const btn = document.querySelector(`.nav button[data-view="${name}"]`);
+  $("pageTitle").textContent = btn ? btn.textContent.replace(/[^\u0E00-\u0E7Fa-zA-Z ]/g,"").trim() : "Dashboard";
+  if(name==="reports") renderReports();
+  if(name==="calendar") renderCalendar();
+}
+function kpis(){
+  const total=STATE.tasks.length, closed=STATE.tasks.filter(isClosed).length;
+  const overdue=STATE.tasks.filter(t=>!isClosed(t)&&parseDate(t["Due Date"])&&parseDate(t["Due Date"])<parseDate(todayISO())).length;
+  const issues=STATE.issues.filter(i=>!["Resolved","Closed","ปิดแล้ว"].includes(safe(i.Status))).length;
+  const wh=STATE.warehouses.length, pending=total-closed, prog= total?Math.round(STATE.tasks.reduce((s,t)=>s+pct(t["Progress %"]),0)/total):0;
+  return {wh,total,closed,pending,overdue,issues,prog};
+}
+function renderDashboard(){
+  const k=kpis(); $("overallProgress").textContent=k.prog+"%";
+  $("kpiGrid").innerHTML = [
+    ["🏢","คลังทั้งหมด",k.wh,"Warehouse profiles"],["📦","งานทั้งหมด",k.total,"Total tasks"],["🔥","งานค้าง",k.pending,"Pending"],["✅","ปิดแล้ว",k.closed,"Completed"],["🚨","เลยกำหนด",k.overdue,"Overdue"],["⚠️","Issues",k.issues,"Open risks"]
+  ].map(x=>`<div class="kpi"><i>${x[0]}</i><span>${x[1]}</span><b>${x[2]}</b><small>${x[3]}</small></div>`).join("");
+  const groups = groupBy(STATE.tasks,"Status");
+  const max = Math.max(1,...Object.values(groups).map(a=>a.length));
+  $("statusBars").innerHTML = Object.entries(groups).map(([s,a])=>`<div class="status-row"><span>${s||"-"}</span><div class="bar"><span style="width:${a.length/max*100}%"></span></div><b>${a.length}</b></div>`).join("") || `<div class="empty">ยังไม่มีงาน</div>`;
+  const follow = followTasks().slice(0,8);
+  $("followList").innerHTML = follow.map(taskFollowHTML).join("") || `<div class="empty">ยังไม่มีงานที่ต้องตาม</div>`;
+  $("hotWarehouses").innerHTML = STATE.warehouses.map(w=>warehouseStats(w)).filter(x=>x.pending||x.overdue).slice(0,6).map(s=>`<div class="follow-item"><div><strong>${s.name}</strong><small>${s.pending} งานค้าง · ${s.overdue} เลยกำหนด</small></div><button class="btn ghost" onclick="selectProfile('${s.id}')">เปิด</button></div>`).join("") || `<div class="empty">ทุกคลังดูปกติ</div>`;
+  $("issueRadar").innerHTML = STATE.issues.filter(i=>safe(i.Status)!=="Resolved").slice(0,6).map(i=>`<div class="follow-item"><div><strong>${i["Issue Title"]}</strong><small>${whName(i["Warehouse ID"])} · ${i.Owner||"-"}</small></div><span class="badge ${statusClass(i.Priority)}">${i.Priority||"Issue"}</span></div>`).join("") || `<div class="empty">ยังไม่มี Issue เปิดอยู่</div>`;
+}
+function taskFollowHTML(t){
+  const due = safe(t["Due Date"]); const cls = isOverdue(t) ? "red" : isDueSoon(t) ? "orange" : statusClass(t.Status);
+  return `<div class="follow-item"><div><strong>${t["Task ID"]} · ${t["Task Name"]}</strong><small>${whName(t["Warehouse ID"])} · Due ${due||"-"} · ${t.Assignee||"-"}</small></div><span class="badge ${cls}">${t.Status||"-"}</span></div>`;
+}
+function followTasks(){ return STATE.tasks.filter(t=>!isClosed(t)&&(isOverdue(t)||isDueSoon(t)||["ติดขัด","รอเอกสาร","รอ Vendor"].includes(safe(t.Status)))); }
+function isOverdue(t){ const d=parseDate(t["Due Date"]); return d && d<parseDate(todayISO()) && !isClosed(t); }
+function isDueSoon(t){ const d=parseDate(t["Due Date"]); if(!d||isClosed(t))return false; const diff=(d-parseDate(todayISO()))/86400000; return diff>=0&&diff<=3; }
+function warehouseStats(w){
+  const id=w["Warehouse ID"], tasks=STATE.tasks.filter(t=>t["Warehouse ID"]===id), closed=tasks.filter(isClosed).length;
+  const overdue=tasks.filter(isOverdue).length, pending=tasks.length-closed, progress=tasks.length?Math.round(tasks.reduce((s,t)=>s+pct(t["Progress %"]),0)/tasks.length):0;
+  const docs=STATE.documents.filter(d=>d["Warehouse ID"]===id).length, issues=STATE.issues.filter(i=>i["Warehouse ID"]===id && safe(i.Status)!=="Resolved").length;
+  const nextDue = tasks.filter(t=>!isClosed(t)&&parseDate(t["Due Date"])).sort((a,b)=>parseDate(a["Due Date"])-parseDate(b["Due Date"]))[0]?.["Due Date"] || "-";
+  return {id,name:w["Warehouse Name"],loc:w["Location / Zone"],owner:w.Owner,status:w["Warehouse Status"],tasks,closed,overdue,pending,progress,docs,issues,nextDue,w};
+}
+function renderWarehouseStatus(){
+  const q=safe($("warehouseStatusSearch")?.value).toLowerCase(), status=safe($("warehouseStatusFilter")?.value), att=safe($("warehouseAttentionFilter")?.value);
+  let list=STATE.warehouses.map(warehouseStats).filter(s=>(!q||JSON.stringify(s).toLowerCase().includes(q))&&(!status||s.status===status));
+  if(att==="pending") list=list.filter(s=>s.pending>0); if(att==="overdue") list=list.filter(s=>s.overdue>0); if(att==="issues") list=list.filter(s=>s.issues>0);
+  $("warehouseStatusGrid").innerHTML=list.map(renderWarehouseCard).join("")||`<div class="empty">ไม่พบคลัง</div>`;
+}
+function renderWarehouseCard(s){
+  const pendingTasks=s.tasks.filter(t=>!isClosed(t)).slice(0,4);
+  return `<article class="warehouse-card">
+    <div class="card-head"><div><h3>${s.name}</h3><small>${s.loc||"-"} · Owner: ${s.owner||"-"}</small></div><div class="progress-ring" style="--p:${s.progress}%"><span>${s.progress}%</span></div></div>
+    <div><span class="badge ${statusClass(s.status)}">${s.status||"ไม่ระบุ"}</span></div>
+    <div class="metric-row"><div class="metric"><b>${s.tasks.length}</b><span>งาน</span></div><div class="metric"><b>${s.pending}</b><span>ค้าง</span></div><div class="metric"><b>${s.overdue}</b><span>เลยกำหนด</span></div><div class="metric"><b>${s.issues}</b><span>Issue</span></div></div>
+    <p><b>Due ถัดไป:</b> ${s.nextDue}</p>
+    <div>${pendingTasks.map(t=>`<div class="task-chip"><b>${t["Task ID"]}</b> ${t["Task Name"]}<br><small>${t.Status} · Due ${t["Due Date"]||"-"}</small></div>`).join("") || `<div class="empty">ไม่มีงานค้าง</div>`}</div>
+    <div class="card-actions"><button class="btn ghost" onclick="selectProfile('${s.id}')">ดูโปรไฟล์</button><button class="btn ghost" onclick="filterTasksByWarehouse('${s.id}')">ดูงาน</button><button class="btn primary" onclick="prefillTaskWarehouse('${s.id}')">เพิ่มงาน</button><button class="btn danger" onclick="deleteRecord('Warehouses','${s.id}','${s.name}')">ลบ</button></div>
   </article>`;
 }
-function openWarehouseProfile(id){
-  if($("#warehouseSelect")) $("#warehouseSelect").value=id;
-  localStorage.setItem("spx_selected_warehouse",id);
-  show("warehouses");
-  warehouses();
+function renderProfileHub(){
+  $("profileCards").innerHTML = STATE.warehouses.map(w=> {
+    const s=warehouseStats(w); return `<button class="profile-card" onclick="selectProfile('${s.id}')"><div class="card-head"><div><h3>${s.name}</h3><small>${s.loc||"-"} · ${s.owner||"-"}</small></div><div class="progress-ring" style="--p:${s.progress}%"><span>${s.progress}%</span></div></div><div class="metric-row"><div class="metric"><b>${s.pending}</b><span>งานค้าง</span></div><div class="metric"><b>${s.docs}</b><span>เอกสาร</span></div><div class="metric"><b>${s.overdue}</b><span>Overdue</span></div><div class="metric"><b>${s.issues}</b><span>Issue</span></div></div><span class="badge ${statusClass(s.status)}">${s.status||"-"}</span></button>`;
+  }).join("") || `<div class="empty">ยังไม่มีคลัง</div>`;
+  if(STATE.selectedWarehouse) renderProfileDetail(STATE.selectedWarehouse);
 }
-function filterTasksByWarehouse(id){
-  show("tasks");
-  if($("#taskFilterWh")) $("#taskFilterWh").value=id;
-  tasks();
+function selectProfile(id){ STATE.selectedWarehouse=id; localStorage.setItem("last_selected_warehouse",id); openView("profileHub"); renderProfileDetail(id); }
+function renderProfileDetail(id){
+  const w=whObj(id), s=warehouseStats(w);
+  if(!w["Warehouse ID"]){ $("profileDetail").innerHTML=""; return; }
+  const tasks=STATE.tasks.filter(t=>t["Warehouse ID"]===id), docs=STATE.documents.filter(d=>d["Warehouse ID"]===id), cals=STATE.calendar.filter(e=>e["Warehouse ID"]===id), issues=STATE.issues.filter(i=>i["Warehouse ID"]===id);
+  $("profileDetail").innerHTML = `<div class="panel">
+    <div class="panel-head split"><div><h3>${w["Warehouse Name"]}</h3><span>${w["Location / Zone"]||"-"} · Owner: ${w.Owner||"-"} · ${w["Warehouse Status"]||"-"}</span></div><div class="card-actions"><button class="btn primary" onclick="prefillTaskWarehouse('${id}')">+ งาน</button><button class="btn ghost" onclick="prefillDocWarehouse('${id}')">+ เอกสาร</button><button class="btn ghost" onclick="prefillCalendarWarehouse('${id}')">+ แผนงาน</button></div></div>
+    <div class="metric-row"><div class="metric"><b>${tasks.length}</b><span>งานทั้งหมด</span></div><div class="metric"><b>${s.pending}</b><span>งานค้าง</span></div><div class="metric"><b>${docs.length}</b><span>เอกสาร</span></div><div class="metric"><b>${issues.filter(i=>i.Status!=="Resolved").length}</b><span>Issue</span></div></div>
+    <div class="dash-grid"><div><h4>งานค้าง</h4>${tasks.filter(t=>!isClosed(t)).map(taskFollowHTML).join("")||`<div class="empty">ไม่มีงานค้าง</div>`}</div><div><h4>เอกสารของคลังนี้</h4>${groupDocsHTML(docs)}</div></div>
+    <div class="dash-grid"><div><h4>แผนงาน</h4>${cals.slice(0,6).map(e=>`<div class="follow-item"><div><strong>${e["Event Title"]}</strong><small>${e["Due Date"]||e["Start Date"]} · ${e.Assignee||"-"}</small></div><span class="badge blue">${e["Event Type"]||"-"}</span></div>`).join("")||`<div class="empty">ยังไม่มีแผนงาน</div>`}</div><div><h4>Risks / Issues</h4>${issues.map(i=>`<div class="follow-item"><div><strong>${i["Issue Title"]}</strong><small>${i.Impact||""}</small></div><span class="badge ${statusClass(i.Priority)}">${i.Status||"Open"}</span></div>`).join("")||`<div class="empty">ไม่มี Issue</div>`}</div></div>
+  </div>`;
 }
-function prefillTaskWarehouse(id){
-  show("addTask");
-  const el=$("#taskWarehouse");
-  if(el) el.value=id;
-  const taskName=$("#taskForm [name='taskName']");
-  if(taskName) taskName.focus();
+function groupDocsHTML(docs){
+  if(!docs.length) return `<div class="empty">ยังไม่มีเอกสาร</div>`;
+  const g=groupBy(docs,"Document Type");
+  return Object.entries(g).map(([type,items])=>`<div class="task-chip"><b>${type||"ไม่ระบุ"}</b><br>${items.map(d=>`<small>${d["Document Name"]} · <a href="${d["File Link"]||"#"}" target="_blank">เปิดไฟล์</a></small>`).join("<br>")}</div>`).join("");
 }
-function warehouses(){
-  const saved=localStorage.getItem("spx_selected_warehouse")||"";
-  const dropdownVal=$("#warehouseSelect")?.value||"";
-  const id=dropdownVal || saved || state.warehouses[0]?.warehouseId || "";
-  if($("#warehouseSelect")) $("#warehouseSelect").value=id;
-  renderWarehouseCards(id);
-  const w=state.warehouses.find(x=>x.warehouseId===id);
-  const delBtn=$("#deleteWarehouseBtn");
-  if(delBtn){
-    delBtn.disabled=!w;
-    delBtn.onclick=()=> w && confirmDelete("warehouse", w.warehouseId, `คลัง ${w.warehouseName || w.warehouseId}`);
-  }
-  if(!w){$("#warehouseProfile").innerHTML=empty("ยังไม่มีคลัง");$("#warehouseTasks").innerHTML="";return;}
-  localStorage.setItem("spx_selected_warehouse",id);
-  const ts=state.tasks.filter(t=>t.warehouseId===id);
-  const f=[["Warehouse ID",w.warehouseId],["ชื่อคลัง",w.warehouseName],["พื้นที่",w.locationZone],["Owner",w.owner],["เบอร์",w.ownerPhone],["สถานะ",w.warehouseStatus],["เริ่ม",w.startDate],["เป้าส่งมอบ",w.targetHandoverDate],["งานทั้งหมด",ts.length],["ปิดแล้ว",ts.filter(t=>t.status==="ปิดแล้ว").length],["หมายเหตุ",w.notes]];
-  $("#warehouseProfile").innerHTML=f.map(x=>`<div class="field"><span>${x[0]}</span><b>${x[1]||"-"}</b></div>`).join("");
-  $("#warehouseTasks").innerHTML=taskTable(ts);
+function renderTasks(){
+  const q=safe($("taskSearch")?.value).toLowerCase(), wid=safe($("taskWarehouseFilter")?.value), st=safe($("taskStatusFilter")?.value);
+  let rows=STATE.tasks.filter(t=>(!q||JSON.stringify(t).toLowerCase().includes(q))&&(!wid||t["Warehouse ID"]===wid)&&(!st||t.Status===st));
+  $("tasksTable").innerHTML = tableHTML(["Task ID","คลัง","ชื่องาน","Assignee","Status","Priority","Due","Progress","Action"], rows.map(t=>[
+    t["Task ID"], whName(t["Warehouse ID"]), t["Task Name"], t.Assignee, badge(t.Status), badge(t.Priority), t["Due Date"], `${pct(t["Progress %"])}%`,
+    `<button class="btn ghost" onclick='showTask("${t["Task ID"]}")'>ดู</button> <button class="btn primary" onclick='quickStatus("${t["Task ID"]}")'>สถานะ</button> <button class="btn danger" onclick='deleteRecord("Tasks","${t["Task ID"]}","${t["Task Name"]}")'>ลบ</button>`
+  ]));
 }
-function renderWarehouseCards(activeId){
-  const box=$("#warehouseCards"); if(!box)return;
-  if(!state.warehouses.length){box.innerHTML=empty("ยังไม่มีคลัง");return;}
-  box.innerHTML=state.warehouses.map(w=>{
-    const ts=state.tasks.filter(t=>t.warehouseId===w.warehouseId);
-    const closed=ts.filter(t=>t.status==="ปิดแล้ว").length;
-    const late=ts.filter(overdueTask).length;
-    const progress=ts.length?Math.round(ts.reduce((sum,t)=>sum+Number(t.progress||0),0)/ts.length):0;
-    return `<button type="button" class="warehouse-card ${w.warehouseId===activeId?'active':''}" onclick="selectWarehouse('${w.warehouseId}')"><b>${esc(w.warehouseName||w.warehouseId)}</b><span>${esc(w.locationZone||'-')} · ${esc(w.owner||'-')}</span><div class="stats"><i>${ts.length} งาน</i><i class="done">${closed} ปิด</i><i class="bad">${late} เลย</i><i>${progress}%</i></div></button>`;
-  }).join("");
+function tableHTML(head, rows){ return `<table class="data-table"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c??""}</td>`).join("")}</tr>`).join("")}</tbody></table>`; }
+function badge(v){ return `<span class="badge ${statusClass(v)}">${v||"-"}</span>`; }
+function renderDocuments(){ $("documentsList").innerHTML = STATE.documents.map(d=>`<div class="follow-item"><div><strong>${d["Document Name"]}</strong><small>${whName(d["Warehouse ID"])} · ${d["Document Type"]} · ${d["Document Status"]}</small></div><div><a class="btn ghost" href="${d["File Link"]||"#"}" target="_blank">เปิด</a> <button class="btn danger" onclick="deleteRecord('Documents','${d["Document ID"]}','${d["Document Name"]}')">ลบ</button></div></div>`).join("") || `<div class="empty">ยังไม่มีเอกสาร</div>`; }
+function renderIssues(){ $("issuesList").innerHTML = STATE.issues.map(i=>`<div class="follow-item"><div><strong>${i["Issue Title"]}</strong><small>${whName(i["Warehouse ID"])} · Owner ${i.Owner||"-"} · Due ${i["Due Date"]||"-"}<br>${i.Impact||""}</small></div><div><span class="badge ${statusClass(i.Priority)}">${i.Status||"Open"}</span> <button class="btn danger" onclick="deleteRecord('Issues','${i["Issue ID"]}','${i["Issue Title"]}')">ลบ</button></div></div>`).join("") || `<div class="empty">ยังไม่มี Issue</div>`; }
+function renderCalendar(){
+  const d=STATE.calendarDate, y=d.getFullYear(), m=d.getMonth();
+  $("calendarTitle").textContent = d.toLocaleString("th-TH",{month:"long",year:"numeric"});
+  const first=new Date(y,m,1), start=new Date(first); start.setDate(first.getDate()-first.getDay());
+  const events = [...STATE.calendar.map(e=>({...e,_kind:"calendar",_date:safe(e["Due Date"]||e["Start Date"])})), ...STATE.tasks.filter(t=>safe(t["Due Date"])).map(t=>({"Event Title":t["Task Name"],"Warehouse ID":t["Warehouse ID"],"Task ID":t["Task ID"],"Event Type":"Task Due","Due Date":t["Due Date"],Assignee:t.Assignee,_kind:"task",_date:t["Due Date"]}))];
+  let html=""; ["อา","จ","อ","พ","พฤ","ศ","ส"].forEach(x=>html+=`<div class="cal-cell muted"><b>${x}</b></div>`);
+  for(let i=0;i<42;i++){ const cur=new Date(start); cur.setDate(start.getDate()+i); const iso=cur.toISOString().slice(0,10); const ev=events.filter(e=>safe(e._date).slice(0,10)===iso); html+=`<div class="cal-cell ${cur.getMonth()!==m?"muted":""}" onclick="showDay('${iso}')"><div class="cal-date">${cur.getDate()}</div>${ev.slice(0,4).map(e=>`<div class="cal-event">${e["Event Title"]}</div>`).join("")}${ev.length>4?`<small>+${ev.length-4}</small>`:""}</div>`; }
+  $("calendarGrid").innerHTML=html; $("calendarDayDetail").innerHTML=`<div class="empty">กดวันที่เพื่อดูรายละเอียด</div>`;
 }
-function selectWarehouse(id){
-  if($("#warehouseSelect")) $("#warehouseSelect").value=id;
-  localStorage.setItem("spx_selected_warehouse",id);
-  warehouses();
+function showDay(iso){
+  const ev = STATE.calendar.filter(e=>safe(e["Due Date"]||e["Start Date"]).slice(0,10)===iso);
+  const tasks = STATE.tasks.filter(t=>safe(t["Due Date"]).slice(0,10)===iso);
+  $("calendarDayDetail").innerHTML = `<h3>${iso}</h3>` + [...ev.map(e=>`<div class="follow-item"><div><strong>${e["Event Title"]}</strong><small>${whName(e["Warehouse ID"])} · ${e["Event Type"]} · ${e.Assignee||"-"}</small></div><span class="badge blue">Plan</span></div>`), ...tasks.map(t=>`<div class="follow-item"><div><strong>${t["Task ID"]} · ${t["Task Name"]}</strong><small>${whName(t["Warehouse ID"])} · ${t.Status}</small></div><button class="btn primary" onclick="quickStatus('${t["Task ID"]}')">แก้สถานะ</button></div>`)].join("") || `<div class="empty">ไม่มีรายการวันนี้</div>`;
 }
-function tasks(){
-  const q=($("#taskSearch").value||"").toLowerCase(), wh=$("#taskFilterWh").value, st=$("#taskFilterStatus").value, pr=$("#taskFilterPriority").value;
-  const data=state.tasks.filter(t=>(!q||[t.taskId,t.taskName,t.assignee,t.warehouseId].join(" ").toLowerCase().includes(q))&&(!wh||t.warehouseId===wh)&&(!st||t.status===st)&&(!pr||t.priority===pr));
-  $("#taskTable").innerHTML=taskTable(data);
+function moveMonth(n){ STATE.calendarDate.setMonth(STATE.calendarDate.getMonth()+n); renderCalendar(); }
+function renderTemplateList(){ $("templateList").innerHTML = tableHTML(["Phase","Task","Priority","Offset","Doc Required"], STATE.templates.map(t=>[t.Phase,t["Task Name"],t.Priority,t["Default Due Offset Days"],t["Document Required"]])); }
+function renderReports(){
+  const k=kpis(), f=followTasks();
+  const lines = [
+    `รายงานงานปิดคลังสินค้า SPX`,
+    `วันที่: ${new Date().toLocaleString("th-TH")}`,
+    ``,
+    `สรุปภาพรวม`,
+    `- คลังทั้งหมด: ${k.wh}`,
+    `- งานทั้งหมด: ${k.total}`,
+    `- งานปิดแล้ว: ${k.closed}`,
+    `- งานค้าง: ${k.pending}`,
+    `- งานเลยกำหนด: ${k.overdue}`,
+    `- Issue เปิดอยู่: ${k.issues}`,
+    `- ความคืบหน้ารวม: ${k.prog}%`,
+    ``,
+    `งานที่ต้องตามด่วน`,
+    ...(f.length?f.map(t=>`- ${t["Task ID"]} | ${whName(t["Warehouse ID"])} | ${t["Task Name"]} | ${t.Status} | Due ${t["Due Date"]||"-"}`):["- ไม่มี"]),
+    ``,
+    `คลังที่มีความเสี่ยง`,
+    ...STATE.warehouses.map(warehouseStats).filter(s=>s.pending||s.overdue||s.issues).map(s=>`- ${s.name}: ค้าง ${s.pending}, เลยกำหนด ${s.overdue}, Issue ${s.issues}`)
+  ];
+  $("reportBox").value = lines.join("\n");
 }
-function taskTable(data){
- if(!data.length)return empty("ไม่พบงาน");
- return `<table><thead><tr><th>ID</th><th>งาน</th><th>คลัง</th><th>Owner</th><th>สถานะ</th><th>Due</th><th>%</th><th></th></tr></thead><tbody>`+data.map(t=>`<tr><td><b>${t.taskId}</b></td><td>${esc(t.taskName)}<br><small>${esc(t.phase||"")}</small></td><td>${whName(t.warehouseId)}</td><td>${esc(t.assignee||"-")}</td><td><span class="badge ${badgeClass(t.status)}">${t.status||"-"}</span></td><td>${t.dueDate||"-"}</td><td>${t.progress||0}%</td><td><div class="row-actions"><button class="mini" onclick="openStatus('${t.taskId}')">แก้สถานะ</button><button class="mini danger" onclick="confirmDelete('task','${t.taskId}','งาน ${esc(t.taskName)}')">ลบ</button></div></td></tr>`).join("")+`</tbody></table>`;
+function renderActivity(){ $("activityTable").innerHTML = tableHTML(["Time","Action","Sheet","Record","Warehouse","User","Details"], STATE.activity.slice().reverse().map(a=>[a.Timestamp,a.Action,a.Sheet,a["Record ID"],whName(a["Warehouse ID"]),a.User,a.Details])); }
+function renderTrash(){ $("trashTable").innerHTML = tableHTML(["Time","Sheet","Record","Warehouse","Deleted By","Reason"], STATE.trash.slice().reverse().map(t=>[t.Timestamp,t["Source Sheet"],t["Record ID"],whName(t["Warehouse ID"]),t["Deleted By"],t.Reason])); }
+function renderSettings(){
+  $("settingSheetId").value=CONFIG.spreadsheetId; $("settingApiUrl").value=CONFIG.apiUrl;
+  $("settingsLists").innerHTML = Object.entries(STATE.settings).map(([k,arr])=>`<div class="settings-col"><h4>${k}</h4>${(arr||[]).map(x=>`<span class="badge blue">${x}</span> `).join("")}</div>`).join("");
 }
-function documents(){ $("#docTable").innerHTML = state.documents.length ? `<table><thead><tr><th>ID</th><th>เอกสาร</th><th>คลัง</th><th>สถานะ</th><th>ลิงก์</th><th></th></tr></thead><tbody>`+state.documents.map(d=>`<tr><td>${d.documentId}</td><td>${esc(d.documentName)}</td><td>${whName(d.warehouseId)}</td><td>${d.documentStatus||"-"}</td><td>${d.fileLink?`<a href="${d.fileLink}" target="_blank">เปิด</a>`:"-"}</td><td><button class="mini danger" onclick="confirmDelete('document','${d.documentId}','เอกสาร ${esc(d.documentName)}')">ลบ</button></td></tr>`).join("")+`</tbody></table>` : empty("ยังไม่มีเอกสาร");}
-function calendar(){
-  const monthInput=$("#calendarMonth");
-  if(monthInput && monthInput.value) state.calendarMonth=monthInput.value;
-  if(monthInput) monthInput.value=state.calendarMonth;
-  const grid=$("#calendarMonthGrid"); if(!grid)return;
-  const [y,m]=state.calendarMonth.split("-").map(Number);
-  const first=new Date(y,m-1,1), last=new Date(y,m,0);
-  const startDay=(first.getDay()+6)%7; // Monday first
-  const days=last.getDate();
-  const wh=$("#calendarWhFilter")?.value||"";
-  const type=$("#calendarTypeFilter")?.value||"";
-  const urgency=$("#calendarUrgencyFilter")?.value||"";
-  let items=getCalendarItems().filter(x=>inMonth(x.dueDate,state.calendarMonth));
-  if(wh)items=items.filter(x=>x.warehouseId===wh);
-  if(type)items=items.filter(x=>x.type===type);
-  if(urgency)items=items.filter(x=>calendarUrgency(x)===urgency || (urgency==="week"&&withinDays(x.dueDate,7)));
-  const byDay=countCalendarByDay(items);
-  const dow=["จ","อ","พ","พฤ","ศ","ส","อา"];
-  let html=dow.map(d=>`<div class="dow">${d}</div>`).join("");
-  for(let i=0;i<startDay;i++) html+=`<div class="day muted-day"></div>`;
-  for(let d=1;d<=days;d++){
-    const date=`${state.calendarMonth}-${String(d).padStart(2,"0")}`;
-    const list=byDay[date]||[];
-    const cls=["day",date===todayISO()?"today":"",list.some(x=>calendarUrgency(x)==="overdue")?"danger":""].join(" ");
-    html+=`<button class="${cls}" type="button" onclick="selectCalendarDate('${date}')"><span class="day-num">${d}</span>${list.slice(0,4).map(x=>`<em class="event-dot ${x.source==='task'?'task-dot':''}" onclick="event.stopPropagation();openCalendarItem('${x.key}')">${esc(shortTitle(x.title))}</em>`).join("")}${list.length>4?`<b class="more">+${list.length-4}</b>`:""}</button>`;
-  }
-  grid.innerHTML=html;
-  renderSelectedDay(state.selectedCalendarDate||todayISO());
+function renderAll(){ renderDashboard(); renderWarehouseStatus(); renderProfileHub(); renderTasks(); renderDocuments(); renderCalendar(); renderIssues(); renderTemplateList(); renderReports(); renderActivity(); renderTrash(); renderSettings(); }
+function groupBy(arr,key){ return arr.reduce((a,x)=>{const k=safe(x[key])||"ไม่ระบุ";(a[k] ||= []).push(x); return a;},{}); }
+function formData(form){ return Object.fromEntries(new FormData(form).entries()); }
+function rememberForm(formId, keys){ const form=$(formId); keys.forEach(k=>{ const el=form?.querySelector(`[name="${k}"]`); const v=localStorage.getItem(`spx_${formId}_${k}`); if(el&&v) el.value=v; if(el) el.addEventListener("change",()=>localStorage.setItem(`spx_${formId}_${k}`,el.value)); }); }
+function setupForms(){
+  $("warehouseForm").addEventListener("submit",async e=>{ e.preventDefault(); try{ await apiPost("addWarehouse",{record:formData(e.target)}); toast("บันทึกคลังแล้ว"); e.target.reset(); await loadAllData(); }catch(err){ toast(err.message); }});
+  $("taskForm").addEventListener("submit",async e=>{ e.preventDefault(); const data=formData(e.target); try{ await apiPost("addTask",{record:data, autoCalendar: !!e.target.autoCalendar.checked}); toast("บันทึกงานแล้ว"); e.target.reset(); await loadAllData(); }catch(err){ toast(err.message); }});
+  $("documentForm").addEventListener("submit",async e=>{ e.preventDefault(); try{ await apiPost("addDocument",{record:formData(e.target)}); toast("เพิ่มเอกสารแล้ว"); e.target.reset(); await loadAllData(); }catch(err){ toast(err.message); }});
+  $("calendarForm").addEventListener("submit",async e=>{ e.preventDefault(); const data=formData(e.target); try{ await apiPost("addCalendarEvent",{record:data}); toast("เพิ่มแผนงานแล้ว"); e.target.reset(); await loadAllData(); STATE.calendarDate=parseDate(data["Due Date"])||new Date(); renderCalendar(); }catch(err){ toast(err.message); }});
+  $("issueForm").addEventListener("submit",async e=>{ e.preventDefault(); try{ await apiPost("addIssue",{record:formData(e.target)}); toast("เพิ่ม Issue แล้ว"); e.target.reset(); await loadAllData(); }catch(err){ toast(err.message); }});
+  rememberForm("taskForm",["Warehouse ID","Phase","Assignee","Status","Priority"]);
 }
-function getCalendarItems(){
-  // Calendar fix: Apps Script may return dates as "YYYY-MM-DD HH:mm:ss".
-  // Normalize every date to "YYYY-MM-DD" so month grid keys match correctly.
-  const calendarItems=state.calendar.map(e=>{
-    const startDate=normalizeDate(e.startDate);
-    const dueDate=normalizeDate(e.dueDate) || startDate;
-    return {source:"calendar",key:"cal:"+e.eventId,id:e.eventId,taskId:e.taskId,warehouseId:e.warehouseId,title:e.eventTitle,type:e.eventType||"กำหนดส่งงาน",startDate,dueDate,assignee:e.assignee,reminderDays:e.reminderDays,calendarStatus:e.calendarStatus,notes:e.notes};
-  }).filter(e=>e.dueDate);
-  const taskItems=state.tasks.map(t=>{
-    const startDate=normalizeDate(t.createdDate);
-    const dueDate=normalizeDate(t.dueDate);
-    return {source:"task",key:"task:"+t.taskId,id:t.taskId,taskId:t.taskId,warehouseId:t.warehouseId,title:t.taskName,type:"Task Due",startDate,dueDate,assignee:t.assignee,reminderDays:"",calendarStatus:t.status,priority:t.priority,notes:t.notes,progress:t.progress,status:t.status};
-  }).filter(t=>t.dueDate);
-  return [...calendarItems,...taskItems];
+async function createChecklist(){
+  const warehouseId=safe($("checklistWarehouse").value), start=safe($("checklistStartDate").value)||todayISO(), assignee=safe($("checklistAssignee").value);
+  if(!warehouseId) return toast("เลือกคลังก่อน");
+  try{ await apiPost("createChecklistFromTemplate",{warehouseId,startDate:start,assignee}); toast("สร้าง Checklist แล้ว"); await loadAllData(); selectProfile(warehouseId); }catch(err){ toast(err.message); }
 }
-function countCalendarByDay(items){return items.reduce((o,x)=>{const d=normalizeDate(x.dueDate||x.startDate);if(!d)return o;(o[d]=o[d]||[]).push(x);return o;},{});}
-function normalizeDate(value){
-  if(!value)return "";
-  if(value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,10);
-  const raw=String(value).trim();
-  if(!raw)return "";
-  const iso=raw.match(/\d{4}-\d{2}-\d{2}/);
-  if(iso)return iso[0];
-  const dmy=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if(dmy){
-    const [,dd,mm,yyyy]=dmy;
-    return `${yyyy}-${String(mm).padStart(2,"0")}-${String(dd).padStart(2,"0")}`;
-  }
-  const parsed=new Date(raw);
-  return isNaN(parsed)?"":parsed.toISOString().slice(0,10);
+async function quickStatus(taskId){
+  const t=byId(STATE.tasks,"Task ID",taskId); if(!t) return;
+  const options=(STATE.settings["Task Status"]||[]).map(s=>`<option ${s===t.Status?"selected":""}>${s}</option>`).join("");
+  $("dialogContent").innerHTML=`<h2>แก้สถานะ ${taskId}</h2><p>${t["Task Name"]}</p><label><span>สถานะใหม่</span><select id="dlgStatus">${options}</select></label><label><span>Progress %</span><input id="dlgProgress" type="number" min="0" max="100" value="${pct(t["Progress %"])}"></label><label><span>หมายเหตุ</span><textarea id="dlgNote"></textarea></label><button class="btn primary wide" onclick="submitStatus('${taskId}')">บันทึกสถานะ</button>`;
+  $("detailDialog").showModal();
 }
-function selectCalendarDate(date){state.selectedCalendarDate=date; renderSelectedDay(date);}
-function renderSelectedDay(date){
-  const title=$("#selectedDayTitle"), box=$("#selectedDayList"); if(!box)return;
-  const selected=normalizeDate(date);
-  title.textContent=`รายการวันที่ ${selected||"-"}`;
-  const wh=$("#calendarWhFilter")?.value||"";
-  const type=$("#calendarTypeFilter")?.value||"";
-  const urgency=$("#calendarUrgencyFilter")?.value||"";
-  let list=getCalendarItems().filter(x=>normalizeDate(x.dueDate)===selected && (!wh||x.warehouseId===wh));
-  if(type)list=list.filter(x=>x.type===type);
-  if(urgency)list=list.filter(x=>calendarUrgency(x)===urgency || (urgency==="week"&&withinDays(x.dueDate,7)));
-  box.innerHTML=list.map(x=>calendarItemCard(x)).join("")||empty("ไม่มีงานหรือแผนงานในวันนี้");
+async function submitStatus(taskId){ try{ await apiPost("updateStatus",{taskId,status:$("dlgStatus").value,progress:$("dlgProgress").value,notes:$("dlgNote").value,user:"Web User"}); closeDialog(); toast("อัปเดตสถานะแล้ว"); await loadAllData(); }catch(err){ toast(err.message); } }
+async function deleteRecord(sheet, id, name){
+  if(!confirm(`ยืนยันลบ ${name || id} ?\nระบบจะเก็บ snapshot ไว้ในถังขยะ`)) return;
+  try{ await apiPost("deleteRecord",{sheet, id, reason:"Deleted from web", user:"Web User"}); toast("ลบข้อมูลแล้ว"); await loadAllData(); }catch(err){ toast(err.message); }
 }
-function calendarItemCard(x){
-  const urgency=calendarUrgency(x);
-  return `<div class="calendar-item ${urgency}" onclick="openCalendarItem('${x.key}')"><b>${esc(x.title)}</b><span>${esc(x.type)} · ${whName(x.warehouseId)} · ${esc(x.assignee||"-")}</span><small>Due ${x.dueDate||"-"}${x.source==='task'?` · ${esc(x.status||"")} · ${x.progress||0}%`:""}</small></div>`;
-}
-function openCalendarItem(key){
-  const item=getCalendarItems().find(x=>x.key===key); if(!item)return;
-  state.currentCalendarItemKey=key;
-  const task=item.taskId?state.tasks.find(t=>t.taskId===item.taskId):null;
-  $("#calendarDetailTitle").textContent=item.source==="task"?"รายละเอียดงานจากปฏิทิน":"รายละเอียดแผนงาน";
-  $("#calendarDetailBody").innerHTML=`<div class="detail-grid"><div><span>หัวข้อ</span><b>${esc(item.title)}</b></div><div><span>คลัง</span><b>${whName(item.warehouseId)}</b></div><div><span>ประเภท</span><b>${esc(item.type)}</b></div><div><span>วันครบกำหนด</span><b>${item.dueDate||"-"}</b></div><div><span>ผู้รับผิดชอบ</span><b>${esc(item.assignee||"-")}</b></div><div><span>สถานะ</span><b>${esc(item.calendarStatus||item.status||"-")}</b></div>${task?`<div><span>Task ID</span><b>${task.taskId}</b></div><div><span>Progress</span><b>${task.progress||0}%</b></div>`:""}<div class="wide"><span>หมายเหตุ</span><p>${esc(item.notes||task?.notes||"-")}</p></div></div>`;
-  const btn=$("#calendarDetailTaskBtn");
-  btn.style.display=task?"inline-flex":"none";
-  btn.onclick=()=>{ $("#calendarDetailDialog").close(); openStatus(task.taskId); };
-  const delBtn=$("#calendarDetailDeleteBtn");
-  if(delBtn){
-    delBtn.style.display=item.source==="calendar"?"inline-flex":"none";
-    delBtn.onclick=()=>{ $("#calendarDetailDialog").close(); confirmDelete("calendar", item.id, `แผนงาน ${item.title}`); };
-  }
-  $("#calendarDetailDialog").showModal();
-}
-function inMonth(date,month){const d=normalizeDate(date);return d && d.slice(0,7)===month;}
-function withinDays(date,days){const d=normalizeDate(date);if(!d)return false;const diff=(new Date(d+"T23:59:59")-new Date())/86400000;return diff>=0&&diff<=days;}
-function calendarUrgency(x){const d=normalizeDate(x.dueDate||x.startDate);if(!d)return "";if(x.source==="task"&&x.status==="ปิดแล้ว")return "done";const diff=(new Date(d+"T23:59:59")-new Date())/86400000;if(diff<0)return "overdue";if(diff<=0.99)return "today";if(diff<=3)return "soon";return "normal";}
-function todayISO(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok"}).format(new Date());}
-function shortTitle(t){t=String(t||"");return t.length>18?t.slice(0,18)+"…":t;}
-
-function logs(){ $("#logTable").innerHTML=state.activityLog.length?`<table><thead><tr><th>เวลา</th><th>Action</th><th>Record</th><th>คลัง</th><th>User</th><th>รายละเอียด</th></tr></thead><tbody>`+state.activityLog.slice().reverse().map(l=>`<tr><td>${l.timestamp||""}</td><td>${l.action||""}</td><td>${l.recordId||""}</td><td>${l.warehouseId||""}</td><td>${l.user||""}</td><td>${esc(l.details||"")}</td></tr>`).join("")+`</tbody></table>`:empty("ยังไม่มี Log");}
-function renderSettingsLists(){
-  const box=$("#settingsLists"); if(!box)return;
-  box.innerHTML=Object.entries(settingsMeta).map(([key,meta])=>{
-    const arr=state.settings[key]||[];
-    return `<div class="settings-box"><div class="settings-head"><b>${meta.label}</b><small>${key}</small></div><div class="chips">${arr.filter(Boolean).map(v=>`<span>${esc(v)}</span>`).join("")||"<small>ยังไม่มีตัวเลือก</small>"}</div><div class="add-setting"><input id="add_${key}" placeholder="เพิ่ม${meta.label}"><button class="mini" onclick="addSettingOption('${key}')">เพิ่ม</button></div></div>`;
-  }).join("");
-}
-async function addSettingOption(key){
-  const input=$("#add_"+key); const value=(input?.value||"").trim(); if(!value)return toast("กรุณาใส่ค่าที่ต้องการเพิ่ม");
-  const r=await apiPost("addSettingOption",{settingKey:key,value});
-  if(r.success){toast("เพิ่มตัวเลือกแล้ว");input.value="";await loadAll();}else toast(r.message||"เพิ่มตัวเลือกไม่สำเร็จ");
-}
-function bindForms(){
-  $("#warehouseSelect").onchange=warehouses; ["taskSearch","taskFilterWh","taskFilterStatus","taskFilterPriority"].forEach(id=>$("#"+id).oninput=tasks);
-  ["warehouseStatusSearch","warehouseStatusFilter","warehouseWorkFilter"].forEach(id=>{const el=$("#"+id); if(el){el.oninput=warehouseStatus; el.onchange=warehouseStatus;}});
-  ["calendarMonth","calendarWhFilter","calendarTypeFilter","calendarUrgencyFilter"].forEach(id=>{const el=$("#"+id); if(el)el.onchange=calendar;});
-  if($("#calPrev")) $("#calPrev").onclick=()=>shiftCalendarMonth(-1);
-  if($("#calNext")) $("#calNext").onclick=()=>shiftCalendarMonth(1);
-  $("#warehouseForm").onsubmit=e=>submit(e,"addWarehouse","เพิ่มคลังแล้ว");
-  $("#taskForm").onsubmit=e=>submit(e,"addTask","เพิ่มงานแล้ว",true);
-  $("#docForm").onsubmit=e=>submit(e,"addDocument","เพิ่มเอกสารแล้ว");
-  $("#calForm").onsubmit=e=>submit(e,"addCalendarEvent","เพิ่มแผนงานแล้ว");
-  $("#saveStatus").onclick=saveStatus; loadMemory(); $("#taskForm").onchange=saveMemory; $("#taskForm").oninput=saveMemory;
-}
-function shiftCalendarMonth(delta){const [y,m]=state.calendarMonth.split("-").map(Number);const d=new Date(y,m-1+delta,1);state.calendarMonth=d.toISOString().slice(0,7);if($("#calendarMonth"))$("#calendarMonth").value=state.calendarMonth;calendar();}
-async function submit(e,action,msg,remember=false){
-  e.preventDefault();
-  const payload=obj(e.target);
-  const focusCalendarDate=action==="addCalendarEvent" ? normalizeDate(payload.dueDate||payload.startDate) : "";
-  const r=await apiPost(action,payload);
-  if(r.success){
-    toast(msg);
-    e.target.reset();
-    if(remember)loadMemory();
-    if(focusCalendarDate){
-      state.calendarMonth=focusCalendarDate.slice(0,7);
-      state.selectedCalendarDate=focusCalendarDate;
-      if($("#calendarMonth"))$("#calendarMonth").value=state.calendarMonth;
-    }
-    await loadAll();
-    if(action==="addCalendarEvent"){
-      show("calendar");
-      calendar();
-    }
-  }else toast(r.message||"บันทึกไม่สำเร็จ");
-}
-function openStatus(id){const t=state.tasks.find(x=>x.taskId===id); if(!t)return; const f=$("#statusForm"); f.taskId.value=id; f.status.value=t.status; f.progress.value=t.progress||0; f.user.value=localStorage.getItem("spx_user")||""; f.notes.value=""; $("#statusInfo").innerHTML=`<b>${t.taskId}</b> · ${esc(t.taskName)}<br><small>สถานะเดิม: ${t.status}</small>`; $("#statusDialog").showModal();}
-async function saveStatus(e){e.preventDefault(); const p=obj($("#statusForm")); localStorage.setItem("spx_user",p.user||""); const r=await apiPost("updateStatus",p); if(r.success){toast("อัปเดตสถานะแล้ว");$("#statusDialog").close();await loadAll();}else toast(r.message||"อัปเดตไม่สำเร็จ");}
-function obj(form){return Object.fromEntries(new FormData(form).entries());}
-function saveMemory(){const o=obj($("#taskForm")); localStorage.setItem("spx_task_memory",JSON.stringify({warehouseId:o.warehouseId,phase:o.phase,assignee:o.assignee,status:o.status,priority:o.priority}));}
-function loadMemory(){try{const m=JSON.parse(localStorage.getItem("spx_task_memory")||"{}");Object.entries(m).forEach(([k,v])=>{const el=$(`#taskForm [name="${k}"]`);if(el&&v)el.value=v;}); const prefs=appPrefs(); const calRem=$(`#calForm [name="reminderDays"]`); if(calRem)calRem.value=prefs.defaultReminderDays; const userInput=$(`#calForm [name="assignee"]`); if(userInput&&!userInput.value)userInput.value=prefs.defaultUser; const addCal=$(`#taskForm [name="addToCalendar"]`); if(addCal)addCal.checked=prefs.autoCalendarFromTask;}catch{}}
-async function confirmDelete(recordType,id,label,cascade=false){
-  if(!id)return;
-  const typeText={warehouse:"คลัง",task:"งาน",document:"เอกสาร",calendar:"แผนงาน"}[recordType]||"ข้อมูล";
-  const extra=recordType==="warehouse"&&!cascade?"\n\nถ้าคลังนี้มีงาน/เอกสาร/แผนงานผูกอยู่ ระบบจะถามยืนยันอีกครั้งก่อนลบแบบพ่วงข้อมูลที่เกี่ยวข้อง":"";
-  if(!confirm(`ยืนยันลบ${typeText}: ${label || id}?${extra}`))return;
-  const user=localStorage.getItem("spx_user")||"Web User";
-  const r=await apiPost("deleteRecord",{recordType,id,user,cascade});
-  if(r?.needsCascade){
-    const ok=confirm(`${r.message}\n\nต้องการลบคลังพร้อมงาน เอกสาร และแผนงานที่เกี่ยวข้องทั้งหมดหรือไม่?`);
-    if(ok)return confirmDelete(recordType,id,label,true);
-    return;
-  }
-  if(r?.success){toast("ลบข้อมูลแล้ว");await loadAll();}
-  else toast(r?.message||"ลบไม่สำเร็จ");
-}
-
-function overdueTask(t){return t.dueDate&&t.status!=="ปิดแล้ว"&&new Date(t.dueDate+"T23:59:59")<new Date();}
-function soon(t){if(!t.dueDate||t.status==="ปิดแล้ว")return false; const d=(new Date(t.dueDate)-new Date())/86400000; return d>=0&&d<=appPrefs().lookAheadDays;}
-function countBy(a,k){return a.reduce((o,x)=>(o[x[k]||"ไม่ระบุ"]=(o[x[k]||"ไม่ระบุ"]||0)+1,o),{});}
-function whName(id){return state.warehouses.find(w=>w.warehouseId===id)?.warehouseName||id||"-";}
-function cardTask(t){return `<div class="item"><b>${t.taskId} · ${esc(t.taskName)}</b><br><small>${whName(t.warehouseId)} · ${t.status} · Due ${t.dueDate||"-"}</small></div>`;}
-function empty(t){return `<div class="item"><small>${t}</small></div>`;}
-function badgeClass(s){if(s==="ปิดแล้ว")return"done";if(s==="ติดขัด")return"bad";if(["กำลังดำเนินการ","รอเอกสาร","รอ Vendor"].includes(s))return"warn";return"";}
-function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));}
-function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
+function showTask(id){ const t=byId(STATE.tasks,"Task ID",id); $("dialogContent").innerHTML=`<h2>${id}</h2><pre>${JSON.stringify(t,null,2)}</pre>`; $("detailDialog").showModal(); }
+function closeDialog(){ $("detailDialog").close(); }
+function filterTasksByWarehouse(id){ openView("tasks"); $("taskWarehouseFilter").value=id; renderTasks(); }
+function prefillTaskWarehouse(id){ openView("addTask"); $("taskWarehouseSelect").value=id; }
+function prefillDocWarehouse(id){ openView("documents"); $("docWarehouseSelect").value=id; }
+function prefillCalendarWarehouse(id){ openView("calendar"); $("calWarehouseSelect").value=id; }
+function copyReport(){ navigator.clipboard.writeText($("reportBox").value); toast("Copy รายงานแล้ว"); }
+function downloadReport(){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([$("reportBox").value],{type:"text/plain"})); a.download=`spx-report-${todayISO()}.txt`; a.click(); }
+function saveConnection(){ CONFIG.spreadsheetId=$("settingSheetId").value.trim(); CONFIG.apiUrl=$("settingApiUrl").value.trim(); localStorage.setItem("spx_sheet_id",CONFIG.spreadsheetId); localStorage.setItem("spx_api_url",CONFIG.apiUrl); toast("บันทึกการเชื่อมต่อแล้ว"); loadAllData(true); }
+async function testConnection(){ try{ const d=await apiGet("ping"); toast("API ใช้งานได้: "+(d?.status||"OK")); setConnected(true); }catch(e){ toast("ทดสอบไม่ผ่าน: "+e.message); } }
+function initClock(){ setInterval(()=>$("clock").textContent=new Date().toLocaleTimeString("th-TH",{hour12:false,timeZone:"Asia/Bangkok"}),1000); }
+function initNav(){ document.querySelectorAll(".nav button").forEach(b=>b.addEventListener("click",()=>openView(b.dataset.view))); }
+document.addEventListener("DOMContentLoaded",()=>{ initClock(); initNav(); setupForms(); loadAllData(); });
