@@ -23,11 +23,11 @@
         </div>
       </div>
 
-      <nav class="nav">
-        <button class="nav-link active" data-view="dashboard">Dashboard</button>
-        <button class="nav-link" data-view="form">เพิ่มงาน</button>
-        <button class="nav-link" data-view="tasks">รายการงาน</button>
-        <button class="nav-link" data-view="settings">เชื่อมต่อ Sheet</button>
+<nav class="nav">
+  <button class="nav-link active" data-view="dashboard">Dashboard</button>
+  <button class="nav-link" data-view="form">เพิ่มงาน</button>
+  <button class="nav-link" data-view="tasks">รายการงาน</button>
+  <button class="nav-link" data-view="status">แก้สถานะ</button>
       </nav>
 
       <div class="connection-card">
@@ -228,6 +228,43 @@
           </div>
         </article>
       </section>
+      <section class="view" id="statusView">
+  <article class="panel">
+    <div class="panel-head split">
+      <div>
+        <h3>แก้สถานะงาน</h3>
+        <span>อัปเดตสถานะงานจากหน้าเว็บ แล้วให้ข้อมูลไปเปลี่ยนใน Google Sheet</span>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label>
+        <span>Task ID</span>
+        <input id="statusTaskId" type="text" placeholder="เช่น T01, T02, T03" />
+      </label>
+
+      <label>
+        <span>สถานะใหม่</span>
+        <select id="newStatus">
+          <option value="รอตรวจสอบ">รอตรวจสอบ</option>
+          <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+          <option value="รอเอกสาร">รอเอกสาร</option>
+          <option value="รอ Vendor">รอ Vendor</option>
+          <option value="ปิดแล้ว">ปิดแล้ว</option>
+        </select>
+      </label>
+
+      <label class="full">
+        <span>หมายเหตุ / ผลลัพธ์</span>
+        <textarea id="statusNote" placeholder="เช่น นัดช่างแล้ว / รอ Owner ยืนยัน / ปิดงานเรียบร้อย"></textarea>
+      </label>
+    </div>
+
+    <button class="primary-btn" type="button" onclick="updateTaskStatus()">
+      บันทึกสถานะ
+    </button>
+  </article>
+</section>
 
       <section class="view" id="settingsView">
         <article class="panel settings-panel">
