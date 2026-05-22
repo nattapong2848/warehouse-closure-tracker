@@ -116,11 +116,12 @@ async function loadAll(){
   renderAll();
 }
 function setConn(ok,text){$("#connDot").classList.toggle("ok",ok);$("#connText").textContent=text;}
-function renderAll(){dropdowns();dashboard();warehouses();tasks();documents();calendar();logs();renderSettingsLists();}
+function renderAll(){dropdowns();dashboard();warehouseStatus();warehouses();tasks();documents();calendar();logs();renderSettingsLists();}
 function dropdowns(){
   fillWh("#warehouseSelect",true); fillWh("#taskWarehouse"); fillWh("#docWarehouse"); fillWh("#calWarehouse"); fillWh("#taskFilterWh",true,"ทุกคลัง"); fillWh("#calendarWhFilter",true,"ทุกคลัง");
   fill("#taskFilterStatus",["",...state.settings.taskStatuses],"ทุกสถานะ"); fill("#taskFilterPriority",["",...state.settings.priorities],"ทุกความสำคัญ");
   fill("#calendarTypeFilter",["",...state.settings.eventTypes,"Task Due"],"ทุกประเภท");
+  fill("#warehouseStatusFilter",["",...state.settings.warehouseStatuses],"ทุกสถานะคลัง");
   $$("[data-list]").forEach(el=>{fillEl(el,state.settings[el.dataset.list]||[]);});
   const m=$("#calendarMonth"); if(m && !m.value) m.value=state.calendarMonth;
 }
@@ -146,6 +147,94 @@ function dashboard(){
   $("#statusBars").innerHTML=Object.entries(c).map(([s,n])=>`<div class="barrow"><span>${s}</span><div class="track"><div class="fill" style="width:${total?Math.round(n/total*100):0}%"></div></div><b>${n}</b></div>`).join("")||empty("ยังไม่มีงาน");
   const follow=state.tasks.filter(t=>overdueTask(t)||soon(t)||["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status));
   $("#todayTasks").innerHTML=follow.map(cardTask).join("")||empty("ยังไม่มีงานที่ต้องตาม");
+}
+
+function warehouseStatus(){
+  const board = $("#warehouseStatusBoard");
+  if(!board) return;
+  const q=($("#warehouseStatusSearch")?.value||"").toLowerCase().trim();
+  const statusFilter=$("#warehouseStatusFilter")?.value||"";
+  const workFilter=$("#warehouseWorkFilter")?.value||"";
+  let rows=state.warehouses.slice();
+  if(q){
+    rows=rows.filter(w=>[w.warehouseId,w.warehouseName,w.locationZone,w.owner,w.ownerPhone,w.warehouseStatus].join(" ").toLowerCase().includes(q));
+  }
+  if(statusFilter) rows=rows.filter(w=>w.warehouseStatus===statusFilter);
+  if(workFilter){
+    rows=rows.filter(w=>{
+      const m=warehouseMetrics(w.warehouseId);
+      if(workFilter==="pending") return m.pending>0;
+      if(workFilter==="overdue") return m.overdue>0;
+      if(workFilter==="blocked") return m.blocked>0;
+      if(workFilter==="done") return m.total>0 && m.pending===0;
+      return true;
+    });
+  }
+  board.innerHTML = rows.length ? rows.map(warehouseStatusCard).join("") : empty("ไม่พบคลังตามเงื่อนไข");
+}
+function warehouseMetrics(warehouseId){
+  const ts=state.tasks.filter(t=>t.warehouseId===warehouseId);
+  const total=ts.length;
+  const closed=ts.filter(t=>t.status==="ปิดแล้ว").length;
+  const overdue=ts.filter(overdueTask).length;
+  const blocked=ts.filter(t=>["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status)).length;
+  const pending=ts.filter(t=>t.status!=="ปิดแล้ว").length;
+  const progress=total?Math.round(ts.reduce((sum,t)=>sum+Number(t.progress||0),0)/total):0;
+  const nextDue=ts.filter(t=>t.status!=="ปิดแล้ว"&&t.dueDate).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))[0]?.dueDate||"-";
+  return {tasks:ts,total,closed,overdue,blocked,pending,progress,nextDue};
+}
+function warehouseStatusCard(w){
+  const m=warehouseMetrics(w.warehouseId);
+  const pendingTasks=m.tasks.filter(t=>t.status!=="ปิดแล้ว");
+  const critical=pendingTasks.filter(t=>overdueTask(t)||["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status));
+  const shown=(critical.length?critical:pendingTasks).slice(0,5);
+  const statusClass=m.overdue?"danger":m.blocked?"warn":m.pending?"active":"done";
+  return `<article class="warehouse-status-card ${statusClass}">
+    <div class="ws-top">
+      <div>
+        <span class="ws-code">${esc(w.warehouseId||"-")}</span>
+        <h3>${esc(w.warehouseName||"ไม่ระบุชื่อคลัง")}</h3>
+        <small>${esc(w.locationZone||"-")} · Owner: ${esc(w.owner||"-")}</small>
+      </div>
+      <div class="ws-ring" style="--p:${m.progress}"><b>${m.progress}%</b><small>progress</small></div>
+    </div>
+    <div class="ws-metrics">
+      <div><b>${m.total}</b><span>งานทั้งหมด</span></div>
+      <div><b>${m.pending}</b><span>งานค้าง</span></div>
+      <div><b>${m.overdue}</b><span>เลยกำหนด</span></div>
+      <div><b>${m.nextDue}</b><span>Due ถัดไป</span></div>
+    </div>
+    <div class="ws-status-line"><span class="badge ${badgeClass(w.warehouseStatus)}">${esc(w.warehouseStatus||"ไม่ระบุสถานะคลัง")}</span><span>${m.closed}/${m.total} งานปิดแล้ว</span></div>
+    <div class="pending-list">
+      <b>งานที่ยังต้องตาม</b>
+      ${shown.length?shown.map(t=>`<div class="pending-task ${overdueTask(t)?'late':''}"><div><strong>${esc(t.taskId)} · ${esc(t.taskName)}</strong><small>${esc(t.status||'-')} · ${esc(t.assignee||'-')} · Due ${esc(t.dueDate||'-')} · ${Number(t.progress||0)}%</small></div><button class="mini" onclick="openStatus('${t.taskId}')">แก้</button></div>`).join(""):`<p class="all-clear">ไม่มีงานค้าง 🎉</p>`}
+      ${pendingTasks.length>shown.length?`<small class="more-pending">ยังมีงานค้างอีก ${pendingTasks.length-shown.length} รายการ</small>`:""}
+    </div>
+    <div class="ws-actions">
+      <button class="mini" onclick="openWarehouseProfile('${w.warehouseId}')">ดูโปรไฟล์</button>
+      <button class="mini" onclick="filterTasksByWarehouse('${w.warehouseId}')">ดูงานทั้งหมด</button>
+      <button class="mini" onclick="prefillTaskWarehouse('${w.warehouseId}')">+ เพิ่มงาน</button>
+      <button class="mini danger" onclick="confirmDelete('warehouse','${w.warehouseId}','คลัง ${esc(w.warehouseName||w.warehouseId)}')">ลบ</button>
+    </div>
+  </article>`;
+}
+function openWarehouseProfile(id){
+  if($("#warehouseSelect")) $("#warehouseSelect").value=id;
+  localStorage.setItem("spx_selected_warehouse",id);
+  show("warehouses");
+  warehouses();
+}
+function filterTasksByWarehouse(id){
+  show("tasks");
+  if($("#taskFilterWh")) $("#taskFilterWh").value=id;
+  tasks();
+}
+function prefillTaskWarehouse(id){
+  show("addTask");
+  const el=$("#taskWarehouse");
+  if(el) el.value=id;
+  const taskName=$("#taskForm [name='taskName']");
+  if(taskName) taskName.focus();
 }
 function warehouses(){
   const saved=localStorage.getItem("spx_selected_warehouse")||"";
@@ -306,6 +395,7 @@ async function addSettingOption(key){
 }
 function bindForms(){
   $("#warehouseSelect").onchange=warehouses; ["taskSearch","taskFilterWh","taskFilterStatus","taskFilterPriority"].forEach(id=>$("#"+id).oninput=tasks);
+  ["warehouseStatusSearch","warehouseStatusFilter","warehouseWorkFilter"].forEach(id=>{const el=$("#"+id); if(el){el.oninput=warehouseStatus; el.onchange=warehouseStatus;}});
   ["calendarMonth","calendarWhFilter","calendarTypeFilter","calendarUrgencyFilter"].forEach(id=>{const el=$("#"+id); if(el)el.onchange=calendar;});
   if($("#calPrev")) $("#calPrev").onclick=()=>shiftCalendarMonth(-1);
   if($("#calNext")) $("#calNext").onclick=()=>shiftCalendarMonth(1);

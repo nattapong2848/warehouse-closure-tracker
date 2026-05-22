@@ -29,13 +29,15 @@
       </div>
     </div>
 
-    <div class="mini-map" aria-hidden="true">
-      <span></span><span></span><span></span><span></span>
-      <b>LIVE ROUTE</b>
+    <div class="side-insight" aria-hidden="true">
+      <b>WAREHOUSE STATUS</b>
+      <strong>Closure Snapshot</strong>
+      <small>ดูสถานะงานค้างแยกตามคลังแบบการ์ด</small>
     </div>
 
     <nav>
       <button class="nav active" data-view="dashboard"><span>⚡</span> Dashboard</button>
+      <button class="nav" data-view="warehouseStatus"><span>🧭</span> สถานะคลัง</button>
       <button class="nav" data-view="warehouses"><span>🏢</span> โปรไฟล์คลัง</button>
       <button class="nav" data-view="addWarehouse"><span>➕</span> เพิ่มคลัง</button>
       <button class="nav" data-view="addTask"><span>📦</span> เพิ่มงาน</button>
@@ -88,6 +90,30 @@
         <div class="card hologram"><h3>สถานะงาน</h3><div id="statusBars"></div></div>
         <div class="card hologram"><h3>งานที่ต้องตาม</h3><div id="todayTasks"></div></div>
       </div>
+    </section>
+
+    <section id="warehouseStatus" class="view">
+      <div class="status-hero ultra-panel">
+        <div>
+          <p class="eyebrow">WAREHOUSE OPERATIONS BOARD</p>
+          <h3>สถานะงานรายคลัง</h3>
+          <small>ดูทีละคลังว่าเหลืองานอะไร ค้างตรงไหน เลยกำหนดกี่รายการ และกดแก้สถานะ / เปิดโปรไฟล์ / เพิ่มงานได้จากการ์ดเดียว</small>
+        </div>
+        <div class="status-tools">
+          <input id="warehouseStatusSearch" placeholder="ค้นหาคลัง / Owner / พื้นที่">
+          <select id="warehouseStatusFilter">
+            <option value="">ทุกสถานะคลัง</option>
+          </select>
+          <select id="warehouseWorkFilter">
+            <option value="">ทุกคลัง</option>
+            <option value="pending">มีงานค้าง</option>
+            <option value="overdue">มีงานเลยกำหนด</option>
+            <option value="blocked">มีงานติดขัด/รอเอกสาร/รอ Vendor</option>
+            <option value="done">งานปิดครบแล้ว</option>
+          </select>
+        </div>
+      </div>
+      <div id="warehouseStatusBoard" class="warehouse-status-board"></div>
     </section>
 
     <section id="warehouses" class="view">
