@@ -14,7 +14,7 @@ const defaults = {
   documentStatuses:["รอตรวจสอบ","ผ่าน","ต้องแก้ไข"],
   eventTypes:["กำหนดส่งงาน","นัดหมาย","ตรวจพื้นที่","ติดตามเอกสาร","แจ้งเตือน"]
 };
-const state = {warehouses:[],tasks:[],documents:[],calendar:[],activityLog:[],settings:{...defaults},calendarMonth:new Date().toISOString().slice(0,7),selectedCalendarDate:null};
+const state = {warehouses:[],tasks:[],documents:[],calendar:[],activityLog:[],settings:{...defaults},calendarMonth:new Date().toISOString().slice(0,7),selectedCalendarDate:null,currentCalendarItemKey:null};
 const settingsMeta = {
   taskStatuses:{label:"สถานะงาน", col:"A"},
   priorities:{label:"ความสำคัญ", col:"B"},
@@ -148,12 +148,39 @@ function dashboard(){
   $("#todayTasks").innerHTML=follow.map(cardTask).join("")||empty("ยังไม่มีงานที่ต้องตาม");
 }
 function warehouses(){
-  const id=$("#warehouseSelect").value||state.warehouses[0]?.warehouseId||""; $("#warehouseSelect").value=id;
-  const w=state.warehouses.find(x=>x.warehouseId===id); if(!w){$("#warehouseProfile").innerHTML=empty("ยังไม่มีคลัง");$("#warehouseTasks").innerHTML="";return;}
+  const saved=localStorage.getItem("spx_selected_warehouse")||"";
+  const dropdownVal=$("#warehouseSelect")?.value||"";
+  const id=dropdownVal || saved || state.warehouses[0]?.warehouseId || "";
+  if($("#warehouseSelect")) $("#warehouseSelect").value=id;
+  renderWarehouseCards(id);
+  const w=state.warehouses.find(x=>x.warehouseId===id);
+  const delBtn=$("#deleteWarehouseBtn");
+  if(delBtn){
+    delBtn.disabled=!w;
+    delBtn.onclick=()=> w && confirmDelete("warehouse", w.warehouseId, `คลัง ${w.warehouseName || w.warehouseId}`);
+  }
+  if(!w){$("#warehouseProfile").innerHTML=empty("ยังไม่มีคลัง");$("#warehouseTasks").innerHTML="";return;}
+  localStorage.setItem("spx_selected_warehouse",id);
   const ts=state.tasks.filter(t=>t.warehouseId===id);
   const f=[["Warehouse ID",w.warehouseId],["ชื่อคลัง",w.warehouseName],["พื้นที่",w.locationZone],["Owner",w.owner],["เบอร์",w.ownerPhone],["สถานะ",w.warehouseStatus],["เริ่ม",w.startDate],["เป้าส่งมอบ",w.targetHandoverDate],["งานทั้งหมด",ts.length],["ปิดแล้ว",ts.filter(t=>t.status==="ปิดแล้ว").length],["หมายเหตุ",w.notes]];
   $("#warehouseProfile").innerHTML=f.map(x=>`<div class="field"><span>${x[0]}</span><b>${x[1]||"-"}</b></div>`).join("");
   $("#warehouseTasks").innerHTML=taskTable(ts);
+}
+function renderWarehouseCards(activeId){
+  const box=$("#warehouseCards"); if(!box)return;
+  if(!state.warehouses.length){box.innerHTML=empty("ยังไม่มีคลัง");return;}
+  box.innerHTML=state.warehouses.map(w=>{
+    const ts=state.tasks.filter(t=>t.warehouseId===w.warehouseId);
+    const closed=ts.filter(t=>t.status==="ปิดแล้ว").length;
+    const late=ts.filter(overdueTask).length;
+    const progress=ts.length?Math.round(ts.reduce((sum,t)=>sum+Number(t.progress||0),0)/ts.length):0;
+    return `<button type="button" class="warehouse-card ${w.warehouseId===activeId?'active':''}" onclick="selectWarehouse('${w.warehouseId}')"><b>${esc(w.warehouseName||w.warehouseId)}</b><span>${esc(w.locationZone||'-')} · ${esc(w.owner||'-')}</span><div class="stats"><i>${ts.length} งาน</i><i class="done">${closed} ปิด</i><i class="bad">${late} เลย</i><i>${progress}%</i></div></button>`;
+  }).join("");
+}
+function selectWarehouse(id){
+  if($("#warehouseSelect")) $("#warehouseSelect").value=id;
+  localStorage.setItem("spx_selected_warehouse",id);
+  warehouses();
 }
 function tasks(){
   const q=($("#taskSearch").value||"").toLowerCase(), wh=$("#taskFilterWh").value, st=$("#taskFilterStatus").value, pr=$("#taskFilterPriority").value;
@@ -162,9 +189,9 @@ function tasks(){
 }
 function taskTable(data){
  if(!data.length)return empty("ไม่พบงาน");
- return `<table><thead><tr><th>ID</th><th>งาน</th><th>คลัง</th><th>Owner</th><th>สถานะ</th><th>Due</th><th>%</th><th></th></tr></thead><tbody>`+data.map(t=>`<tr><td><b>${t.taskId}</b></td><td>${esc(t.taskName)}<br><small>${esc(t.phase||"")}</small></td><td>${whName(t.warehouseId)}</td><td>${esc(t.assignee||"-")}</td><td><span class="badge ${badgeClass(t.status)}">${t.status||"-"}</span></td><td>${t.dueDate||"-"}</td><td>${t.progress||0}%</td><td><button class="mini" onclick="openStatus('${t.taskId}')">แก้สถานะ</button></td></tr>`).join("")+`</tbody></table>`;
+ return `<table><thead><tr><th>ID</th><th>งาน</th><th>คลัง</th><th>Owner</th><th>สถานะ</th><th>Due</th><th>%</th><th></th></tr></thead><tbody>`+data.map(t=>`<tr><td><b>${t.taskId}</b></td><td>${esc(t.taskName)}<br><small>${esc(t.phase||"")}</small></td><td>${whName(t.warehouseId)}</td><td>${esc(t.assignee||"-")}</td><td><span class="badge ${badgeClass(t.status)}">${t.status||"-"}</span></td><td>${t.dueDate||"-"}</td><td>${t.progress||0}%</td><td><div class="row-actions"><button class="mini" onclick="openStatus('${t.taskId}')">แก้สถานะ</button><button class="mini danger" onclick="confirmDelete('task','${t.taskId}','งาน ${esc(t.taskName)}')">ลบ</button></div></td></tr>`).join("")+`</tbody></table>`;
 }
-function documents(){ $("#docTable").innerHTML = state.documents.length ? `<table><thead><tr><th>ID</th><th>เอกสาร</th><th>คลัง</th><th>สถานะ</th><th>ลิงก์</th></tr></thead><tbody>`+state.documents.map(d=>`<tr><td>${d.documentId}</td><td>${esc(d.documentName)}</td><td>${whName(d.warehouseId)}</td><td>${d.documentStatus||"-"}</td><td>${d.fileLink?`<a href="${d.fileLink}" target="_blank">เปิด</a>`:"-"}</td></tr>`).join("")+`</tbody></table>` : empty("ยังไม่มีเอกสาร");}
+function documents(){ $("#docTable").innerHTML = state.documents.length ? `<table><thead><tr><th>ID</th><th>เอกสาร</th><th>คลัง</th><th>สถานะ</th><th>ลิงก์</th><th></th></tr></thead><tbody>`+state.documents.map(d=>`<tr><td>${d.documentId}</td><td>${esc(d.documentName)}</td><td>${whName(d.warehouseId)}</td><td>${d.documentStatus||"-"}</td><td>${d.fileLink?`<a href="${d.fileLink}" target="_blank">เปิด</a>`:"-"}</td><td><button class="mini danger" onclick="confirmDelete('document','${d.documentId}','เอกสาร ${esc(d.documentName)}')">ลบ</button></td></tr>`).join("")+`</tbody></table>` : empty("ยังไม่มีเอกสาร");}
 function calendar(){
   const monthInput=$("#calendarMonth");
   if(monthInput && monthInput.value) state.calendarMonth=monthInput.value;
@@ -244,12 +271,18 @@ function calendarItemCard(x){
 }
 function openCalendarItem(key){
   const item=getCalendarItems().find(x=>x.key===key); if(!item)return;
+  state.currentCalendarItemKey=key;
   const task=item.taskId?state.tasks.find(t=>t.taskId===item.taskId):null;
   $("#calendarDetailTitle").textContent=item.source==="task"?"รายละเอียดงานจากปฏิทิน":"รายละเอียดแผนงาน";
   $("#calendarDetailBody").innerHTML=`<div class="detail-grid"><div><span>หัวข้อ</span><b>${esc(item.title)}</b></div><div><span>คลัง</span><b>${whName(item.warehouseId)}</b></div><div><span>ประเภท</span><b>${esc(item.type)}</b></div><div><span>วันครบกำหนด</span><b>${item.dueDate||"-"}</b></div><div><span>ผู้รับผิดชอบ</span><b>${esc(item.assignee||"-")}</b></div><div><span>สถานะ</span><b>${esc(item.calendarStatus||item.status||"-")}</b></div>${task?`<div><span>Task ID</span><b>${task.taskId}</b></div><div><span>Progress</span><b>${task.progress||0}%</b></div>`:""}<div class="wide"><span>หมายเหตุ</span><p>${esc(item.notes||task?.notes||"-")}</p></div></div>`;
   const btn=$("#calendarDetailTaskBtn");
   btn.style.display=task?"inline-flex":"none";
   btn.onclick=()=>{ $("#calendarDetailDialog").close(); openStatus(task.taskId); };
+  const delBtn=$("#calendarDetailDeleteBtn");
+  if(delBtn){
+    delBtn.style.display=item.source==="calendar"?"inline-flex":"none";
+    delBtn.onclick=()=>{ $("#calendarDetailDialog").close(); confirmDelete("calendar", item.id, `แผนงาน ${item.title}`); };
+  }
   $("#calendarDetailDialog").showModal();
 }
 function inMonth(date,month){const d=normalizeDate(date);return d && d.slice(0,7)===month;}
@@ -309,6 +342,22 @@ async function saveStatus(e){e.preventDefault(); const p=obj($("#statusForm")); 
 function obj(form){return Object.fromEntries(new FormData(form).entries());}
 function saveMemory(){const o=obj($("#taskForm")); localStorage.setItem("spx_task_memory",JSON.stringify({warehouseId:o.warehouseId,phase:o.phase,assignee:o.assignee,status:o.status,priority:o.priority}));}
 function loadMemory(){try{const m=JSON.parse(localStorage.getItem("spx_task_memory")||"{}");Object.entries(m).forEach(([k,v])=>{const el=$(`#taskForm [name="${k}"]`);if(el&&v)el.value=v;}); const prefs=appPrefs(); const calRem=$(`#calForm [name="reminderDays"]`); if(calRem)calRem.value=prefs.defaultReminderDays; const userInput=$(`#calForm [name="assignee"]`); if(userInput&&!userInput.value)userInput.value=prefs.defaultUser; const addCal=$(`#taskForm [name="addToCalendar"]`); if(addCal)addCal.checked=prefs.autoCalendarFromTask;}catch{}}
+async function confirmDelete(recordType,id,label,cascade=false){
+  if(!id)return;
+  const typeText={warehouse:"คลัง",task:"งาน",document:"เอกสาร",calendar:"แผนงาน"}[recordType]||"ข้อมูล";
+  const extra=recordType==="warehouse"&&!cascade?"\n\nถ้าคลังนี้มีงาน/เอกสาร/แผนงานผูกอยู่ ระบบจะถามยืนยันอีกครั้งก่อนลบแบบพ่วงข้อมูลที่เกี่ยวข้อง":"";
+  if(!confirm(`ยืนยันลบ${typeText}: ${label || id}?${extra}`))return;
+  const user=localStorage.getItem("spx_user")||"Web User";
+  const r=await apiPost("deleteRecord",{recordType,id,user,cascade});
+  if(r?.needsCascade){
+    const ok=confirm(`${r.message}\n\nต้องการลบคลังพร้อมงาน เอกสาร และแผนงานที่เกี่ยวข้องทั้งหมดหรือไม่?`);
+    if(ok)return confirmDelete(recordType,id,label,true);
+    return;
+  }
+  if(r?.success){toast("ลบข้อมูลแล้ว");await loadAll();}
+  else toast(r?.message||"ลบไม่สำเร็จ");
+}
+
 function overdueTask(t){return t.dueDate&&t.status!=="ปิดแล้ว"&&new Date(t.dueDate+"T23:59:59")<new Date();}
 function soon(t){if(!t.dueDate||t.status==="ปิดแล้ว")return false; const d=(new Date(t.dueDate)-new Date())/86400000; return d>=0&&d<=appPrefs().lookAheadDays;}
 function countBy(a,k){return a.reduce((o,x)=>(o[x[k]||"ไม่ระบุ"]=(o[x[k]||"ไม่ระบุ"]||0)+1,o),{});}

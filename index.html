@@ -92,7 +92,17 @@
 
     <section id="warehouses" class="view">
       <div class="card hero-lite">
-        <div class="head"><h3>โปรไฟล์คลัง</h3><select id="warehouseSelect"></select></div>
+        <div class="head">
+          <div>
+            <h3>โปรไฟล์คลัง</h3>
+            <small>เลือกคลังจากการ์ดด้านล่าง หรือเลือกจาก Dropdown เพื่อดูรายละเอียด งาน เอกสาร และสถานะของคลังนั้น</small>
+          </div>
+          <select id="warehouseSelect"></select>
+        </div>
+        <div id="warehouseCards" class="warehouse-cards"></div>
+        <div class="profile-actions">
+          <button id="deleteWarehouseBtn" class="btn danger" type="button">ลบคลังนี้</button>
+        </div>
         <div id="warehouseProfile" class="profile"></div>
       </div>
       <div class="card"><h3>งานของคลังนี้</h3><div id="warehouseTasks"></div></div>
@@ -276,6 +286,7 @@
     <div id="calendarDetailBody"></div>
     <div class="actions">
       <button value="cancel" class="btn light">ปิด</button>
+      <button id="calendarDetailDeleteBtn" class="btn danger" type="button">ลบแผนงาน</button>
       <button id="calendarDetailTaskBtn" class="btn" type="button">เปิดงานที่เกี่ยวข้อง</button>
     </div>
   </form>
