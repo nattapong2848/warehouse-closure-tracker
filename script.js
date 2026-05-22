@@ -1,191 +1,270 @@
+
+const DEFAULT_SHEET_ID = "1gNnjKeqxaE6TtCOOXOqnaG_E0v5dQtUmE_KfLgoo6hI";
 const CONFIG = {
-  spreadsheetId: localStorage.getItem('spx_sheet_id') || '1sV6GP5swsuPnB8biAl7WfadzK7ISVKizYXCsIq4fsSA',
-  apiUrl: localStorage.getItem('spx_api_url') || 'https://script.google.com/macros/s/AKfycbw6IT1EP4h_XU1u3gMYaeH8kHr_r1n_q1mCB7-Yad51tHHt9WNefYUbQYEndooHT4LTCg/exec'
+  sheetId: localStorage.getItem("spx_sheet_id") || DEFAULT_SHEET_ID,
+  apiUrl: localStorage.getItem("spx_api_url") || ""
 };
 
-const sampleTasks = [
-  {id:'SPX-0001',date:'2026-05-21',warehouse:'คลังบางนา',zone:'Inbound',type:'ตรวจนับทรัพย์สิน',detail:'ตรวจนับอุปกรณ์ก่อนส่งคืนพื้นที่',owner:'คุณเอก',department:'Operation',priority:'สูง',status:'กำลังดำเนินการ',dueDate:'2026-05-28',closedDate:'',progress:65,risk:'รอ vendor ยืนยันจำนวน',solution:'ตามเอกสาร PO และนัดเข้าพื้นที่'},
-  {id:'SPX-0002',date:'2026-05-21',warehouse:'คลังลาดกระบัง',zone:'Outbound',type:'คืนพื้นที่',detail:'ตรวจความเรียบร้อยก่อนส่งมอบ landlord',owner:'คุณมีน',department:'Facility',priority:'กลาง',status:'รอตรวจสอบ',dueDate:'2026-06-03',closedDate:'',progress:35,risk:'รอใบเสนอราคาซ่อมพื้น',solution:'ให้ช่างเข้าประเมิน'},
-  {id:'SPX-0003',date:'2026-05-21',warehouse:'คลังรังสิต',zone:'Office',type:'เอกสาร / สัญญา',detail:'รวบรวมเอกสารส่งคืนพื้นที่',owner:'คุณนัท',department:'Legal',priority:'สูง',status:'รอเอกสาร',dueDate:'2026-05-24',closedDate:'',progress:45,risk:'เอกสาร landlord ยังไม่ครบ',solution:'ตาม owner ทุกวัน'},
-  {id:'SPX-0004',date:'2026-05-21',warehouse:'คลังบางพลี',zone:'Facility',type:'ซ่อมแซม / Facility',detail:'เก็บ defect list หลังรื้อถอน',owner:'คุณบี',department:'Facility',priority:'ต่ำ',status:'ปิดแล้ว',dueDate:'2026-05-20',closedDate:'2026-05-20',progress:100,risk:'',solution:'ปิดงานแล้ว'}
-];
-
-let tasks = [];
-let statusChart, priorityChart;
-
-const $ = (id) => document.getElementById(id);
-const toast = (msg) => {
-  const el = $('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2600);
+const defaults = {
+  taskStatuses:["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"],
+  priorities:["สูงมาก","สูง","กลาง","ต่ำ"],
+  warehouseStatuses:["ยังไม่เริ่ม","กำลังปิดคลัง","รอส่งมอบ","ส่งมอบแล้ว","ปิดโครงการแล้ว"],
+  phases:["เฟส 1 · ตรวจสัญญาและแจ้งเลิก","เฟส 2 · วางแผนและตั้งทีม","เฟส 3 · เคลียร์ทรัพย์สินและสต๊อก","เฟส 4 · ยกเลิก Vendor และสาธารณูปโภค","เฟส 5 · คืนสภาพพื้นที่","เฟส 6 · ส่งมอบพื้นที่","เฟส 7 · ปิดการเงินและเงินประกัน"],
+  documentTypes:["สัญญาเช่า","ใบส่งมอบพื้นที่","รูปภาพพื้นที่","ใบเสนอราคา","Invoice / PO","อื่น ๆ"],
+  documentStatuses:["รอตรวจสอบ","ผ่าน","ต้องแก้ไข"],
+  eventTypes:["กำหนดส่งงาน","นัดหมาย","ตรวจพื้นที่","ติดตามเอกสาร","แจ้งเตือน"]
 };
+const state = {warehouses:[],tasks:[],documents:[],calendar:[],activityLog:[],settings:{...defaults},calendarMonth:new Date().toISOString().slice(0,7),selectedCalendarDate:null};
+const settingsMeta = {
+  taskStatuses:{label:"สถานะงาน", col:"A"},
+  priorities:{label:"ความสำคัญ", col:"B"},
+  warehouseStatuses:{label:"สถานะคลัง", col:"C"},
+  phases:{label:"เฟสงาน", col:"D"},
+  documentTypes:{label:"ประเภทเอกสาร", col:"E"},
+  documentStatuses:{label:"สถานะเอกสาร", col:"F"},
+  eventTypes:{label:"ประเภทแผนงาน", col:"G"},
+  calendarStatuses:{label:"สถานะเตือน", col:"H"}
+};
+const appPrefs = () => ({
+  defaultUser: localStorage.getItem("spx_user") || "",
+  defaultReminderDays: Number(localStorage.getItem("spx_default_reminder_days") || 2),
+  lookAheadDays: Number(localStorage.getItem("spx_lookahead_days") || 7),
+  autoCalendarFromTask: localStorage.getItem("spx_auto_calendar") === "1"
+});
+const demo = {
+  warehouses:[{warehouseId:"WH-0001",warehouseName:"คลังตัวอย่าง",locationZone:"บางนา / โซน A",owner:"Owner ตัวอย่าง",ownerPhone:"",startDate:"2026-05-22",targetHandoverDate:"2026-06-30",warehouseStatus:"กำลังปิดคลัง",documentFolderLink:"",notes:"Demo"}],
+  tasks:[{taskId:"T-0001",createdDate:"2026-05-22",warehouseId:"WH-0001",phase:"เฟส 1 · ตรวจสัญญาและแจ้งเลิก",taskName:"ตรวจสัญญาเช่า",assignee:"Owner ตัวอย่าง",status:"กำลังดำเนินการ",priority:"สูง",dueDate:"2026-05-30",progress:"25",closedDate:"",evidenceLink:"",lastUpdated:"",notes:"Demo"}],
+  documents:[],calendar:[],activityLog:[]
+};
+const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
 
-function normalizeTask(row){
-  return {
-    id: row.id || row.ID || row['ID'] || `SPX-${Date.now()}`,
-    date: row.date || row['วันที่บันทึก'] || new Date().toISOString().slice(0,10),
-    warehouse: row.warehouse || row['ชื่อคลัง'] || '',
-    zone: row.zone || row['พื้นที่/โซน'] || '',
-    type: row.type || row['ประเภทงาน'] || '',
-    detail: row.detail || row['รายละเอียดงาน'] || '',
-    owner: row.owner || row['ผู้รับผิดชอบ'] || '',
-    department: row.department || row['ฝ่ายที่เกี่ยวข้อง'] || '',
-    priority: row.priority || row['ความสำคัญ'] || 'กลาง',
-    status: row.status || row['สถานะ'] || 'กำลังดำเนินการ',
-    dueDate: row.dueDate || row['วันที่ครบกำหนด'] || '',
-    closedDate: row.closedDate || row['วันที่ปิดงาน'] || '',
-    progress: Number(row.progress || row['ความคืบหน้า (%)'] || 0),
-    risk: row.risk || row['ปัญหา/ความเสี่ยง'] || '',
-    solution: row.solution || row['แนวทางแก้ไข'] || ''
+document.addEventListener("DOMContentLoaded",()=>{
+  initEffects();
+  tickClock();
+  setInterval(tickClock, 1000);
+  bindNav(); bindForms(); initConfig(); loadAll();
+});
+
+function initEffects(){
+  const field=$("#particleField");
+  if(field && !field.dataset.ready){
+    field.dataset.ready="1";
+    for(let i=0;i<46;i++){
+      const p=document.createElement("span");
+      p.className="particle";
+      p.style.left=Math.random()*100+"vw";
+      p.style.setProperty("--dx",(Math.random()*120-60)+"px");
+      p.style.animationDuration=(8+Math.random()*14)+"s";
+      p.style.animationDelay=(-Math.random()*18)+"s";
+      p.style.opacity=(.22+Math.random()*.55).toFixed(2);
+      field.appendChild(p);
+    }
+  }
+}
+function tickClock(){
+  const el=$("#liveClock");
+  if(!el)return;
+  el.textContent=new Intl.DateTimeFormat("th-TH",{timeZone:"Asia/Bangkok",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date());
+}
+
+function bindNav(){
+  $$(".nav").forEach(b=>b.onclick=()=>show(b.dataset.view));
+  $$("[data-go]").forEach(b=>b.onclick=()=>show(b.dataset.go));
+  $("#refreshBtn").onclick=loadAll;
+}
+function show(v){
+  $$(".nav").forEach(b=>b.classList.toggle("active",b.dataset.view===v));
+  $$(".view").forEach(x=>x.classList.remove("active"));
+  $("#"+v)?.classList.add("active");
+  $("#title").textContent = document.querySelector(`[data-view="${v}"]`)?.textContent || "Dashboard";
+}
+function initConfig(){
+  if($("#sheetId")) $("#sheetId").value=CONFIG.sheetId;
+  if($("#apiUrl")) $("#apiUrl").value=CONFIG.apiUrl;
+  const prefs=appPrefs();
+  if($("#defaultUser")) $("#defaultUser").value=prefs.defaultUser;
+  if($("#defaultReminderDays")) $("#defaultReminderDays").value=prefs.defaultReminderDays;
+  if($("#lookAheadDays")) $("#lookAheadDays").value=prefs.lookAheadDays;
+  if($("#autoCalendarFromTask")) $("#autoCalendarFromTask").checked=prefs.autoCalendarFromTask;
+  $("#saveConfig").onclick=()=>{CONFIG.sheetId=$("#sheetId").value.trim();CONFIG.apiUrl=$("#apiUrl").value.trim();localStorage.setItem("spx_sheet_id",CONFIG.sheetId);localStorage.setItem("spx_api_url",CONFIG.apiUrl);toast("บันทึกการเชื่อมต่อแล้ว");loadAll();};
+  $("#testApi").onclick=async()=>{const r=await apiGet("ping");toast(r?.success?"API ใช้งานได้":"ยังเชื่อมต่อไม่ได้");};
+  if($("#savePreferences")) $("#savePreferences").onclick=()=>{
+    localStorage.setItem("spx_user",$("#defaultUser").value.trim());
+    localStorage.setItem("spx_default_reminder_days",$("#defaultReminderDays").value || 2);
+    localStorage.setItem("spx_lookahead_days",$("#lookAheadDays").value || 7);
+    localStorage.setItem("spx_auto_calendar",$("#autoCalendarFromTask").checked ? "1" : "0");
+    toast("บันทึกค่าการใช้งานแล้ว");
+    dashboard(); calendar();
   };
 }
-
-async function fetchTasks(){
-  if(!CONFIG.apiUrl){
-    tasks = JSON.parse(localStorage.getItem('spx_local_tasks') || 'null') || sampleTasks;
-    $('connectionStatus').textContent = 'Local Preview';
-    renderAll();
-    return;
-  }
+async function apiGet(action){
+  if(!CONFIG.apiUrl)return null;
+  const url=new URL(CONFIG.apiUrl); url.searchParams.set("action",action); url.searchParams.set("spreadsheetId",CONFIG.sheetId);
+  return fetch(url).then(r=>r.json());
+}
+async function apiPost(action,payload){
+  if(!CONFIG.apiUrl){toast("ยังไม่ได้ใส่ Apps Script URL");return {success:false};}
+  return fetch(CONFIG.apiUrl,{method:"POST",body:JSON.stringify({action,spreadsheetId:CONFIG.sheetId,...payload})}).then(r=>r.json());
+}
+async function loadAll(){
+  setConn(false,"กำลังโหลด...");
   try{
-    $('connectionStatus').textContent = 'กำลังเชื่อมต่อ...';
-    const url = `${CONFIG.apiUrl}?action=list&sheetId=${encodeURIComponent(CONFIG.spreadsheetId)}`;
-    const res = await fetch(url);
-    const json = await res.json();
-    tasks = (json.data || []).map(normalizeTask);
-    $('connectionStatus').textContent = 'Google Sheet Connected';
-    renderAll();
-  }catch(err){
-    console.error(err);
-    $('connectionStatus').textContent = 'เชื่อมต่อไม่สำเร็จ';
-    tasks = JSON.parse(localStorage.getItem('spx_local_tasks') || 'null') || sampleTasks;
-    renderAll();
-    toast('เชื่อมต่อ Sheet ไม่สำเร็จ แสดงข้อมูลตัวอย่างแทน');
+    const r=await apiGet("getAllData");
+    if(r?.success){Object.assign(state,r.data);state.settings={...defaults,...(r.data.settings||{})};setConn(true,"เชื่อมต่อแล้ว");}
+    else{Object.assign(state,demo);state.settings={...defaults};setConn(false,"Demo Mode");}
+  }catch(e){console.error(e);Object.assign(state,demo);state.settings={...defaults};setConn(false,"Demo Mode");}
+  renderAll();
+}
+function setConn(ok,text){$("#connDot").classList.toggle("ok",ok);$("#connText").textContent=text;}
+function renderAll(){dropdowns();dashboard();warehouses();tasks();documents();calendar();logs();renderSettingsLists();}
+function dropdowns(){
+  fillWh("#warehouseSelect",true); fillWh("#taskWarehouse"); fillWh("#docWarehouse"); fillWh("#calWarehouse"); fillWh("#taskFilterWh",true,"ทุกคลัง"); fillWh("#calendarWhFilter",true,"ทุกคลัง");
+  fill("#taskFilterStatus",["",...state.settings.taskStatuses],"ทุกสถานะ"); fill("#taskFilterPriority",["",...state.settings.priorities],"ทุกความสำคัญ");
+  fill("#calendarTypeFilter",["",...state.settings.eventTypes,"Task Due"],"ทุกประเภท");
+  $$("[data-list]").forEach(el=>{fillEl(el,state.settings[el.dataset.list]||[]);});
+  const m=$("#calendarMonth"); if(m && !m.value) m.value=state.calendarMonth;
+}
+function fillWh(sel,blank=false,blankText="เลือกคลัง"){const e=$(sel); if(!e)return; e.innerHTML=""; if(blank)e.add(new Option(blankText,"")); state.warehouses.forEach(w=>e.add(new Option(`${w.warehouseId} · ${w.warehouseName}`,w.warehouseId)));}
+function fill(sel,arr,blankText){const e=$(sel); if(!e)return; e.innerHTML=""; arr.forEach((v,i)=>e.add(new Option(i===0&&v===""?blankText:v,v)));}
+function fillEl(e,arr){const old=e.value;e.innerHTML="";arr.filter(Boolean).forEach(v=>e.add(new Option(v,v)));if(old)e.value=old;}
+function dashboard(){
+  const total=state.tasks.length, closed=state.tasks.filter(t=>t.status==="ปิดแล้ว").length, overdue=state.tasks.filter(overdueTask).length, docs=state.documents.length;
+  const running=state.tasks.filter(t=>["กำลังดำเนินการ","รอเอกสาร","รอ Vendor"].includes(t.status)).length;
+  const avg=total?Math.round(state.tasks.reduce((s,t)=>s+Number(t.progress||0),0)/total):0;
+  const k=[
+    {label:"คลังทั้งหมด",value:state.warehouses.length,icon:"🏢",hint:"Warehouse profiles"},
+    {label:"งานทั้งหมด",value:total,icon:"📦",hint:"Total tasks"},
+    {label:"กำลังเดิน",value:running,icon:"🚚",hint:"In motion"},
+    {label:"ปิดแล้ว",value:closed,icon:"✅",hint:"Completed"},
+    {label:"เลยกำหนด",value:overdue,icon:"🔥",hint:"Need action"},
+    {label:"ความคืบหน้า",value:avg+"%",icon:"📈",hint:"Average progress"}
+  ];
+  $("#kpis").innerHTML=k.map(x=>`<div class="kpi"><i>${x.icon}</i><span>${x.label}</span><strong>${x.value}</strong><em>${x.hint}</em></div>`).join("");
+  const heroProgress=$("#heroProgress"); if(heroProgress) heroProgress.textContent=avg+"%";
+  const heroSummary=$("#heroSummary"); if(heroSummary) heroSummary.textContent=`${state.warehouses.length} คลัง · ${total} งาน · ${overdue} งานต้องเร่ง`;
+  const c=countBy(state.tasks,"status");
+  $("#statusBars").innerHTML=Object.entries(c).map(([s,n])=>`<div class="barrow"><span>${s}</span><div class="track"><div class="fill" style="width:${total?Math.round(n/total*100):0}%"></div></div><b>${n}</b></div>`).join("")||empty("ยังไม่มีงาน");
+  const follow=state.tasks.filter(t=>overdueTask(t)||soon(t)||["ติดขัด","รอเอกสาร","รอ Vendor"].includes(t.status));
+  $("#todayTasks").innerHTML=follow.map(cardTask).join("")||empty("ยังไม่มีงานที่ต้องตาม");
+}
+function warehouses(){
+  const id=$("#warehouseSelect").value||state.warehouses[0]?.warehouseId||""; $("#warehouseSelect").value=id;
+  const w=state.warehouses.find(x=>x.warehouseId===id); if(!w){$("#warehouseProfile").innerHTML=empty("ยังไม่มีคลัง");$("#warehouseTasks").innerHTML="";return;}
+  const ts=state.tasks.filter(t=>t.warehouseId===id);
+  const f=[["Warehouse ID",w.warehouseId],["ชื่อคลัง",w.warehouseName],["พื้นที่",w.locationZone],["Owner",w.owner],["เบอร์",w.ownerPhone],["สถานะ",w.warehouseStatus],["เริ่ม",w.startDate],["เป้าส่งมอบ",w.targetHandoverDate],["งานทั้งหมด",ts.length],["ปิดแล้ว",ts.filter(t=>t.status==="ปิดแล้ว").length],["หมายเหตุ",w.notes]];
+  $("#warehouseProfile").innerHTML=f.map(x=>`<div class="field"><span>${x[0]}</span><b>${x[1]||"-"}</b></div>`).join("");
+  $("#warehouseTasks").innerHTML=taskTable(ts);
+}
+function tasks(){
+  const q=($("#taskSearch").value||"").toLowerCase(), wh=$("#taskFilterWh").value, st=$("#taskFilterStatus").value, pr=$("#taskFilterPriority").value;
+  const data=state.tasks.filter(t=>(!q||[t.taskId,t.taskName,t.assignee,t.warehouseId].join(" ").toLowerCase().includes(q))&&(!wh||t.warehouseId===wh)&&(!st||t.status===st)&&(!pr||t.priority===pr));
+  $("#taskTable").innerHTML=taskTable(data);
+}
+function taskTable(data){
+ if(!data.length)return empty("ไม่พบงาน");
+ return `<table><thead><tr><th>ID</th><th>งาน</th><th>คลัง</th><th>Owner</th><th>สถานะ</th><th>Due</th><th>%</th><th></th></tr></thead><tbody>`+data.map(t=>`<tr><td><b>${t.taskId}</b></td><td>${esc(t.taskName)}<br><small>${esc(t.phase||"")}</small></td><td>${whName(t.warehouseId)}</td><td>${esc(t.assignee||"-")}</td><td><span class="badge ${badgeClass(t.status)}">${t.status||"-"}</span></td><td>${t.dueDate||"-"}</td><td>${t.progress||0}%</td><td><button class="mini" onclick="openStatus('${t.taskId}')">แก้สถานะ</button></td></tr>`).join("")+`</tbody></table>`;
+}
+function documents(){ $("#docTable").innerHTML = state.documents.length ? `<table><thead><tr><th>ID</th><th>เอกสาร</th><th>คลัง</th><th>สถานะ</th><th>ลิงก์</th></tr></thead><tbody>`+state.documents.map(d=>`<tr><td>${d.documentId}</td><td>${esc(d.documentName)}</td><td>${whName(d.warehouseId)}</td><td>${d.documentStatus||"-"}</td><td>${d.fileLink?`<a href="${d.fileLink}" target="_blank">เปิด</a>`:"-"}</td></tr>`).join("")+`</tbody></table>` : empty("ยังไม่มีเอกสาร");}
+function calendar(){
+  const monthInput=$("#calendarMonth");
+  if(monthInput && monthInput.value) state.calendarMonth=monthInput.value;
+  if(monthInput) monthInput.value=state.calendarMonth;
+  const grid=$("#calendarMonthGrid"); if(!grid)return;
+  const [y,m]=state.calendarMonth.split("-").map(Number);
+  const first=new Date(y,m-1,1), last=new Date(y,m,0);
+  const startDay=(first.getDay()+6)%7; // Monday first
+  const days=last.getDate();
+  const wh=$("#calendarWhFilter")?.value||"";
+  const type=$("#calendarTypeFilter")?.value||"";
+  const urgency=$("#calendarUrgencyFilter")?.value||"";
+  let items=getCalendarItems().filter(x=>inMonth(x.dueDate,state.calendarMonth));
+  if(wh)items=items.filter(x=>x.warehouseId===wh);
+  if(type)items=items.filter(x=>x.type===type);
+  if(urgency)items=items.filter(x=>calendarUrgency(x)===urgency || (urgency==="week"&&withinDays(x.dueDate,7)));
+  const byDay=countCalendarByDay(items);
+  const dow=["จ","อ","พ","พฤ","ศ","ส","อา"];
+  let html=dow.map(d=>`<div class="dow">${d}</div>`).join("");
+  for(let i=0;i<startDay;i++) html+=`<div class="day muted-day"></div>`;
+  for(let d=1;d<=days;d++){
+    const date=`${state.calendarMonth}-${String(d).padStart(2,"0")}`;
+    const list=byDay[date]||[];
+    const cls=["day",date===todayISO()?"today":"",list.some(x=>calendarUrgency(x)==="overdue")?"danger":""].join(" ");
+    html+=`<button class="${cls}" type="button" onclick="selectCalendarDate('${date}')"><span class="day-num">${d}</span>${list.slice(0,4).map(x=>`<em class="event-dot ${x.source==='task'?'task-dot':''}" onclick="event.stopPropagation();openCalendarItem('${x.key}')">${esc(shortTitle(x.title))}</em>`).join("")}${list.length>4?`<b class="more">+${list.length-4}</b>`:""}</button>`;
   }
+  grid.innerHTML=html;
+  renderSelectedDay(state.selectedCalendarDate||todayISO());
 }
+function getCalendarItems(){
+  const calendarItems=state.calendar.map(e=>({source:"calendar",key:"cal:"+e.eventId,id:e.eventId,taskId:e.taskId,warehouseId:e.warehouseId,title:e.eventTitle,type:e.eventType||"กำหนดส่งงาน",startDate:e.startDate,dueDate:e.dueDate,assignee:e.assignee,reminderDays:e.reminderDays,calendarStatus:e.calendarStatus,notes:e.notes}));
+  const taskItems=state.tasks.filter(t=>t.dueDate).map(t=>({source:"task",key:"task:"+t.taskId,id:t.taskId,taskId:t.taskId,warehouseId:t.warehouseId,title:t.taskName,type:"Task Due",startDate:t.createdDate,dueDate:t.dueDate,assignee:t.assignee,reminderDays:"",calendarStatus:t.status,priority:t.priority,notes:t.notes,progress:t.progress,status:t.status}));
+  return [...calendarItems,...taskItems];
+}
+function countCalendarByDay(items){return items.reduce((o,x)=>{if(!x.dueDate)return o;(o[x.dueDate]=o[x.dueDate]||[]).push(x);return o;},{});}
+function selectCalendarDate(date){state.selectedCalendarDate=date; renderSelectedDay(date);}
+function renderSelectedDay(date){
+  const title=$("#selectedDayTitle"), box=$("#selectedDayList"); if(!box)return;
+  title.textContent=`รายการวันที่ ${date||"-"}`;
+  const wh=$("#calendarWhFilter")?.value||"";
+  const list=getCalendarItems().filter(x=>x.dueDate===date && (!wh||x.warehouseId===wh));
+  box.innerHTML=list.map(x=>calendarItemCard(x)).join("")||empty("ไม่มีงานหรือแผนงานในวันนี้");
+}
+function calendarItemCard(x){
+  const urgency=calendarUrgency(x);
+  return `<div class="calendar-item ${urgency}" onclick="openCalendarItem('${x.key}')"><b>${esc(x.title)}</b><span>${esc(x.type)} · ${whName(x.warehouseId)} · ${esc(x.assignee||"-")}</span><small>Due ${x.dueDate||"-"}${x.source==='task'?` · ${esc(x.status||"")} · ${x.progress||0}%`:""}</small></div>`;
+}
+function openCalendarItem(key){
+  const item=getCalendarItems().find(x=>x.key===key); if(!item)return;
+  const task=item.taskId?state.tasks.find(t=>t.taskId===item.taskId):null;
+  $("#calendarDetailTitle").textContent=item.source==="task"?"รายละเอียดงานจากปฏิทิน":"รายละเอียดแผนงาน";
+  $("#calendarDetailBody").innerHTML=`<div class="detail-grid"><div><span>หัวข้อ</span><b>${esc(item.title)}</b></div><div><span>คลัง</span><b>${whName(item.warehouseId)}</b></div><div><span>ประเภท</span><b>${esc(item.type)}</b></div><div><span>วันครบกำหนด</span><b>${item.dueDate||"-"}</b></div><div><span>ผู้รับผิดชอบ</span><b>${esc(item.assignee||"-")}</b></div><div><span>สถานะ</span><b>${esc(item.calendarStatus||item.status||"-")}</b></div>${task?`<div><span>Task ID</span><b>${task.taskId}</b></div><div><span>Progress</span><b>${task.progress||0}%</b></div>`:""}<div class="wide"><span>หมายเหตุ</span><p>${esc(item.notes||task?.notes||"-")}</p></div></div>`;
+  const btn=$("#calendarDetailTaskBtn");
+  btn.style.display=task?"inline-flex":"none";
+  btn.onclick=()=>{ $("#calendarDetailDialog").close(); openStatus(task.taskId); };
+  $("#calendarDetailDialog").showModal();
+}
+function inMonth(date,month){return date && String(date).slice(0,7)===month;}
+function withinDays(date,days){if(!date)return false;const diff=(new Date(date+"T23:59:59")-new Date())/86400000;return diff>=0&&diff<=days;}
+function calendarUrgency(x){if(!x.dueDate)return "";if(x.source==="task"&&x.status==="ปิดแล้ว")return "done";const diff=(new Date(x.dueDate+"T23:59:59")-new Date())/86400000;if(diff<0)return "overdue";if(diff<=0.99)return "today";if(diff<=3)return "soon";return "normal";}
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function shortTitle(t){t=String(t||"");return t.length>18?t.slice(0,18)+"…":t;}
 
-async function submitTask(task){
-  if(!CONFIG.apiUrl){
-    const local = JSON.parse(localStorage.getItem('spx_local_tasks') || 'null') || sampleTasks;
-    local.unshift(task);
-    localStorage.setItem('spx_local_tasks', JSON.stringify(local));
-    tasks = local;
-    renderAll();
-    toast('บันทึกใน Local Preview แล้ว');
-    return;
-  }
-  const res = await fetch(CONFIG.apiUrl, {
-    method: 'POST',
-    mode: 'cors',
-    headers: {'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({action:'create', sheetId: CONFIG.spreadsheetId, data: task})
-  });
-  const json = await res.json();
-  if(!json.ok) throw new Error(json.error || 'Save failed');
-  await fetchTasks();
-  toast('บันทึกเข้า Google Sheet แล้ว');
+function logs(){ $("#logTable").innerHTML=state.activityLog.length?`<table><thead><tr><th>เวลา</th><th>Action</th><th>Record</th><th>คลัง</th><th>User</th><th>รายละเอียด</th></tr></thead><tbody>`+state.activityLog.slice().reverse().map(l=>`<tr><td>${l.timestamp||""}</td><td>${l.action||""}</td><td>${l.recordId||""}</td><td>${l.warehouseId||""}</td><td>${l.user||""}</td><td>${esc(l.details||"")}</td></tr>`).join("")+`</tbody></table>`:empty("ยังไม่มี Log");}
+function renderSettingsLists(){
+  const box=$("#settingsLists"); if(!box)return;
+  box.innerHTML=Object.entries(settingsMeta).map(([key,meta])=>{
+    const arr=state.settings[key]||[];
+    return `<div class="settings-box"><div class="settings-head"><b>${meta.label}</b><small>${key}</small></div><div class="chips">${arr.filter(Boolean).map(v=>`<span>${esc(v)}</span>`).join("")||"<small>ยังไม่มีตัวเลือก</small>"}</div><div class="add-setting"><input id="add_${key}" placeholder="เพิ่ม${meta.label}"><button class="mini" onclick="addSettingOption('${key}')">เพิ่ม</button></div></div>`;
+  }).join("");
 }
-
-function isOverdue(t){
-  if(!t.dueDate || t.status === 'ปิดแล้ว') return false;
-  const today = new Date(); today.setHours(0,0,0,0);
-  return new Date(t.dueDate) < today;
+async function addSettingOption(key){
+  const input=$("#add_"+key); const value=(input?.value||"").trim(); if(!value)return toast("กรุณาใส่ค่าที่ต้องการเพิ่ม");
+  const r=await apiPost("addSettingOption",{settingKey:key,value});
+  if(r.success){toast("เพิ่มตัวเลือกแล้ว");input.value="";await loadAll();}else toast(r.message||"เพิ่มตัวเลือกไม่สำเร็จ");
 }
-function countBy(key){
-  return tasks.reduce((acc,t)=>{acc[t[key]]=(acc[t[key]]||0)+1; return acc;},{});
+function bindForms(){
+  $("#warehouseSelect").onchange=warehouses; ["taskSearch","taskFilterWh","taskFilterStatus","taskFilterPriority"].forEach(id=>$("#"+id).oninput=tasks);
+  ["calendarMonth","calendarWhFilter","calendarTypeFilter","calendarUrgencyFilter"].forEach(id=>{const el=$("#"+id); if(el)el.onchange=calendar;});
+  if($("#calPrev")) $("#calPrev").onclick=()=>shiftCalendarMonth(-1);
+  if($("#calNext")) $("#calNext").onclick=()=>shiftCalendarMonth(1);
+  $("#warehouseForm").onsubmit=e=>submit(e,"addWarehouse","เพิ่มคลังแล้ว");
+  $("#taskForm").onsubmit=e=>submit(e,"addTask","เพิ่มงานแล้ว",true);
+  $("#docForm").onsubmit=e=>submit(e,"addDocument","เพิ่มเอกสารแล้ว");
+  $("#calForm").onsubmit=e=>submit(e,"addCalendarEvent","เพิ่มแผนงานแล้ว");
+  $("#saveStatus").onclick=saveStatus; loadMemory(); $("#taskForm").onchange=saveMemory; $("#taskForm").oninput=saveMemory;
 }
-function renderStats(){
-  $('totalTasks').textContent = tasks.length;
-  $('inProgressTasks').textContent = tasks.filter(t => t.status !== 'ปิดแล้ว').length;
-  $('overdueTasks').textContent = tasks.filter(isOverdue).length;
-  $('doneTasks').textContent = tasks.filter(t => t.status === 'ปิดแล้ว').length;
-}
-function renderCharts(){
-  if(typeof Chart === 'undefined') return;
-  const statusData = countBy('status');
-  const priorityData = countBy('priority');
-  if(statusChart) statusChart.destroy();
-  if(priorityChart) priorityChart.destroy();
-  statusChart = new Chart($('statusChart'), {type:'doughnut', data:{labels:Object.keys(statusData), datasets:[{data:Object.values(statusData)}]}, options:{plugins:{legend:{position:'bottom'}}, cutout:'62%'}});
-  priorityChart = new Chart($('priorityChart'), {type:'bar', data:{labels:Object.keys(priorityData), datasets:[{label:'จำนวนงาน', data:Object.values(priorityData), borderRadius:12}]}, options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
-}
-function badgeClass(t){
-  if(t.status === 'ปิดแล้ว') return 'green';
-  if(isOverdue(t) || t.priority === 'สูง') return 'red';
-  return 'orange';
-}
-function renderUrgent(){
-  const urgent = tasks.filter(t => t.status !== 'ปิดแล้ว').sort((a,b)=>{
-    const pa = a.priority === 'สูง' ? 0 : a.priority === 'กลาง' ? 1 : 2;
-    const pb = b.priority === 'สูง' ? 0 : b.priority === 'กลาง' ? 1 : 2;
-    return pa - pb || new Date(a.dueDate) - new Date(b.dueDate);
-  }).slice(0,6);
-  $('urgentLane').innerHTML = urgent.map(t => `
-    <div class="task-card">
-      <div class="task-meta">
-        <span class="badge ${badgeClass(t)}">${isOverdue(t) ? 'เลยกำหนด' : t.priority}</span>
-        <span class="badge">${t.status}</span>
-      </div>
-      <h4>${t.warehouse || '-'}</h4>
-      <p>${t.detail || t.type || '-'}</p>
-      <div class="task-meta"><span>Owner: ${t.owner || '-'}</span><span>Due: ${t.dueDate || '-'}</span></div>
-      <div class="progress"><i style="width:${Math.min(100, Math.max(0,t.progress))}%"></i></div>
-    </div>
-  `).join('') || '<p>ยังไม่มีงานที่ต้องตาม</p>';
-}
-function renderTable(){
-  const q = $('searchInput').value.trim().toLowerCase();
-  const status = $('statusFilter').value;
-  const filtered = tasks.filter(t => {
-    const hay = `${t.id} ${t.warehouse} ${t.owner} ${t.detail} ${t.risk}`.toLowerCase();
-    return (!q || hay.includes(q)) && (!status || t.status === status);
-  });
-  $('taskTable').innerHTML = filtered.map(t => `
-    <tr>
-      <td><strong>${t.id}</strong></td>
-      <td>${t.warehouse}<br><small>${t.zone || ''}</small></td>
-      <td>${t.type || '-'}</td>
-      <td>${t.owner || '-'}</td>
-      <td><span class="badge ${badgeClass(t)}">${t.status}</span></td>
-      <td>${t.dueDate || '-'}</td>
-      <td>${t.progress}%<div class="progress"><i style="width:${Math.min(100, Math.max(0,t.progress))}%"></i></div></td>
-      <td>${t.risk || '-'}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="8">ไม่พบข้อมูล</td></tr>';
-}
-function renderAll(){renderStats();renderCharts();renderUrgent();renderTable();}
-
-function switchView(name){
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-link').forEach(n => n.classList.toggle('active', n.dataset.view === name));
-  $(`${name}View`).classList.add('active');
-  $('pageTitle').textContent = {dashboard:'ภาพรวมงานปิดคลัง',form:'เพิ่มงานใหม่',tasks:'รายการงานทั้งหมด',settings:'ตั้งค่าการเชื่อมต่อ'}[name];
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  $('sheetIdLabel').textContent = `${CONFIG.spreadsheetId.slice(0,4)}...${CONFIG.spreadsheetId.slice(-4)}`;
-  $('sheetIdInput').value = CONFIG.spreadsheetId;
-  $('apiUrlInput').value = CONFIG.apiUrl;
-  document.querySelectorAll('.nav-link').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
-  document.querySelectorAll('[data-jump]').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.jump)));
-  $('refreshBtn').addEventListener('click', fetchTasks);
-  $('searchInput').addEventListener('input', renderTable);
-  $('statusFilter').addEventListener('change', renderTable);
-  $('saveSettingsBtn').addEventListener('click', () => {
-    localStorage.setItem('spx_api_url', $('apiUrlInput').value.trim());
-    localStorage.setItem('spx_sheet_id', $('sheetIdInput').value.trim());
-    toast('บันทึกการตั้งค่าแล้ว รีเฟรชหน้าเว็บเพื่อใช้ค่าใหม่');
-  });
-  $('taskForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    const task = Object.fromEntries(form.entries());
-    task.id = `SPX-${String(Date.now()).slice(-6)}`;
-    task.date = new Date().toISOString().slice(0,10);
-    task.progress = Number(task.progress || 0);
-    try{ await submitTask(task); e.target.reset(); switchView('dashboard'); }
-    catch(err){ console.error(err); toast('บันทึกไม่สำเร็จ ตรวจสอบ Apps Script URL'); }
-  });
-  fetchTasks();
-});
+function shiftCalendarMonth(delta){const [y,m]=state.calendarMonth.split("-").map(Number);const d=new Date(y,m-1+delta,1);state.calendarMonth=d.toISOString().slice(0,7);if($("#calendarMonth"))$("#calendarMonth").value=state.calendarMonth;calendar();}
+async function submit(e,action,msg,remember=false){e.preventDefault(); const r=await apiPost(action,obj(e.target)); if(r.success){toast(msg); e.target.reset(); if(remember)loadMemory(); await loadAll();}else toast(r.message||"บันทึกไม่สำเร็จ");}
+function openStatus(id){const t=state.tasks.find(x=>x.taskId===id); if(!t)return; const f=$("#statusForm"); f.taskId.value=id; f.status.value=t.status; f.progress.value=t.progress||0; f.user.value=localStorage.getItem("spx_user")||""; f.notes.value=""; $("#statusInfo").innerHTML=`<b>${t.taskId}</b> · ${esc(t.taskName)}<br><small>สถานะเดิม: ${t.status}</small>`; $("#statusDialog").showModal();}
+async function saveStatus(e){e.preventDefault(); const p=obj($("#statusForm")); localStorage.setItem("spx_user",p.user||""); const r=await apiPost("updateStatus",p); if(r.success){toast("อัปเดตสถานะแล้ว");$("#statusDialog").close();await loadAll();}else toast(r.message||"อัปเดตไม่สำเร็จ");}
+function obj(form){return Object.fromEntries(new FormData(form).entries());}
+function saveMemory(){const o=obj($("#taskForm")); localStorage.setItem("spx_task_memory",JSON.stringify({warehouseId:o.warehouseId,phase:o.phase,assignee:o.assignee,status:o.status,priority:o.priority}));}
+function loadMemory(){try{const m=JSON.parse(localStorage.getItem("spx_task_memory")||"{}");Object.entries(m).forEach(([k,v])=>{const el=$(`#taskForm [name="${k}"]`);if(el&&v)el.value=v;}); const prefs=appPrefs(); const calRem=$(`#calForm [name="reminderDays"]`); if(calRem)calRem.value=prefs.defaultReminderDays; const userInput=$(`#calForm [name="assignee"]`); if(userInput&&!userInput.value)userInput.value=prefs.defaultUser; const addCal=$(`#taskForm [name="addToCalendar"]`); if(addCal)addCal.checked=prefs.autoCalendarFromTask;}catch{}}
+function overdueTask(t){return t.dueDate&&t.status!=="ปิดแล้ว"&&new Date(t.dueDate+"T23:59:59")<new Date();}
+function soon(t){if(!t.dueDate||t.status==="ปิดแล้ว")return false; const d=(new Date(t.dueDate)-new Date())/86400000; return d>=0&&d<=appPrefs().lookAheadDays;}
+function countBy(a,k){return a.reduce((o,x)=>(o[x[k]||"ไม่ระบุ"]=(o[x[k]||"ไม่ระบุ"]||0)+1,o),{});}
+function whName(id){return state.warehouses.find(w=>w.warehouseId===id)?.warehouseName||id||"-";}
+function cardTask(t){return `<div class="item"><b>${t.taskId} · ${esc(t.taskName)}</b><br><small>${whName(t.warehouseId)} · ${t.status} · Due ${t.dueDate||"-"}</small></div>`;}
+function empty(t){return `<div class="item"><small>${t}</small></div>`;}
+function badgeClass(s){if(s==="ปิดแล้ว")return"done";if(s==="ติดขัด")return"bad";if(["กำลังดำเนินการ","รอเอกสาร","รอ Vendor"].includes(s))return"warn";return"";}
+function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));}
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
