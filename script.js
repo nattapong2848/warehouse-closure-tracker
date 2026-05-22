@@ -96,8 +96,21 @@ function parseDate(v){
   if(!v) return null;
   if(v instanceof Date) return v;
   const s = String(v).trim();
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if(m) return new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+
+  // ISO: 2026-05-22 or 2026-05-22 00:00:00
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(iso){
+    const y = iso[1], m = String(iso[2]).padStart(2,"0"), d = String(iso[3]).padStart(2,"0");
+    return new Date(`${y}-${m}-${d}T00:00:00`);
+  }
+
+  // Thai/Google display format: 22/5/2026, 12:51:48 or 22/05/2026
+  const th = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(th){
+    const d = String(th[1]).padStart(2,"0"), m = String(th[2]).padStart(2,"0"), y = th[3];
+    return new Date(`${y}-${m}-${d}T00:00:00`);
+  }
+
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
@@ -217,7 +230,26 @@ function normalizeChecklistTemplates(list){
   })).filter(t => t["Task Name"]);
 }
 function renderAll(){
-  renderDropdowns(); renderDashboard(); renderWarehouseStatus(); renderProfiles(); renderTasks(); renderDocuments(); renderCalendar(); renderIssues(); renderChecklist(); renderDailyReport(); renderActivity(); renderTrash(); renderSettingsGrid();
+  const jobs = [
+    ["dropdowns", renderDropdowns],
+    ["dashboard", renderDashboard],
+    ["warehouseStatus", renderWarehouseStatus],
+    ["profiles", renderProfiles],
+    ["tasks", renderTasks],
+    ["documents", renderDocuments],
+    ["calendar", renderCalendar],
+    ["issues", renderIssues],
+    ["checklist", renderChecklist],
+    ["reports", renderDailyReport],
+    ["activity", renderActivity],
+    ["trash", renderTrash],
+    ["settings", renderSettingsGrid]
+  ];
+
+  jobs.forEach(([name, fn]) => {
+    try { if(typeof fn === "function") fn(); }
+    catch(err){ console.error("Render error:", name, err); }
+  });
 }
 
 function whName(id){ return state.warehouses.find(w=>w["Warehouse ID"]===id)?.["Warehouse Name"] || id || "-"; }
@@ -686,24 +718,72 @@ function escapeAttr(value){
     .replace(/</g,"&lt;")
     .replace(/>/g,"&gt;");
 }
-function fillSelect(sel,arr,placeholder="เลือก",clear=true){ if(!sel) return; const old=sel.value; sel.innerHTML = (clear?`<option value="">${placeholder}</option>`:"") + arr.map(v=>`<option value="${v}">${v}</option>`).join(""); if([...sel.options].some(o=>o.value===old)) sel.value=old; }
-function fillSelectObj(sel,arr,placeholder="เลือก",clear=true){ if(!sel) return; const old=sel.value; sel.innerHTML = (clear?`<option value="">${placeholder}</option>`:"") + arr.map(o=>`<option value="${o.value}">${o.label}</option>`).join(""); if([...sel.options].some(o=>o.value===old)) sel.value=old; }
 
-function dataFromForm(form){ return Object.fromEntries(new FormData(form).entries()); }
-async function submitWarehouse(e){ e.preventDefault(); const d=dataFromForm(e.target); saveFormMemory(e.target,"warehouse"); const payload={"Warehouse ID":uid("WH"),"Warehouse Name":d.warehouseName,"Location / Zone":d.location,Owner:d.owner,"Owner Phone":d.ownerPhone,"Start Date":d.startDate,"Target Handover Date":d.targetDate,"Warehouse Status":d.status,"Document Folder Link":d.folderLink,Notes:d.notes,"Created At":new Date().toISOString(),"Updated At":new Date().toISOString()}; await postAndRefresh("addWarehouse",payload,"บันทึกคลังแล้ว"); e.target.reset(); }
-async function submitTask(e){ e.preventDefault(); const d=dataFromForm(e.target); saveFormMemory(e.target,"task"); const payload={"Task ID":uid("T"),"Created Date":todayISO(),"Warehouse ID":d.warehouseId,Phase:d.phase,"Task Name":d.taskName,Assignee:d.assignee,Status:d.status,Priority:d.priority,"Due Date":d.dueDate,"Progress %":d.progress,"Closed Date":"","Evidence Link":d.evidenceLink,"Last Updated":new Date().toISOString(),Notes:d.notes}; await postAndRefresh("addTask",{task:payload,createCalendar:!!d.createCalendar},"บันทึกงานแล้ว"); e.target.reset(); }
-async function submitDocument(e){ e.preventDefault(); const d=dataFromForm(e.target); const payload={"Document ID":uid("DOC"),"Warehouse ID":d.warehouseId,"Task ID":d.taskId,"Document Type":d.docType,"Document Name":d.docName,"File Link":d.fileLink,"Document Status":d.docStatus,"Uploaded By":d.uploadedBy,"Uploaded Date":todayISO(),Notes:d.notes}; await postAndRefresh("addDocument",payload,"เพิ่มเอกสารแล้ว"); e.target.reset(); }
-async function submitCalendarEvent(e){ e.preventDefault(); const d=dataFromForm(e.target); const payload={"Event ID":uid("EV"),"Warehouse ID":d.warehouseId,"Task ID":d.taskId,"Event Title":d.eventTitle,"Event Type":d.eventType,"Start Date":d.startDate,"Due Date":d.dueDate,Assignee:d.assignee,"Reminder Days":d.reminderDays,"Calendar Status":"ยังไม่เตือน",Notes:d.notes}; await postAndRefresh("addCalendarEvent",payload,"เพิ่มแผนงานแล้ว"); state.calendarCursor=(d.dueDate||todayISO()).slice(0,7); state.selectedCalendarDate=d.dueDate||todayISO(); e.target.reset(); showView("calendar"); }
-async function submitIssue(e){ e.preventDefault(); const d=dataFromForm(e.target); const payload={"Issue ID":uid("ISS"),"Warehouse ID":d.warehouseId,"Task ID":d.taskId,"Issue Title":d.issueTitle,Impact:d.impact,Owner:d.owner,Status:d.status,Priority:d.priority,"Due Date":d.dueDate,Solution:d.solution,"Created Date":todayISO(),Notes:""}; await postAndRefresh("addIssue",payload,"เพิ่ม Issue แล้ว"); e.target.reset(); }
-async function postAndRefresh(action,payload,msg){ try{ await api(action,payload); toast(msg); await loadAllData(); }catch(err){ console.error(err); toast("บันทึกไม่สำเร็จ: "+err.message); } }
+function renderDropdowns(){
+  // Critical function: if missing, renderAll stops and page looks connected but empty.
+  ensureDefaultSettings();
 
-function quickStatus(taskId){
-  const t=state.tasks.find(x=>x["Task ID"]===taskId); if(!t) return;
-  openModal(`<h2>แก้สถานะ: ${t["Task ID"]}</h2><p><b>${t["Task Name"]}</b><br>${whName(t["Warehouse ID"])}</p>
-    <label>สถานะใหม่<select id="modalStatus">${(state.settings["Task Status"]||[]).map(s=>`<option ${s===t.Status?"selected":""}>${s}</option>`).join("")}</select></label>
-    <label>Progress %<input id="modalProgress" type="number" min="0" max="100" value="${t["Progress %"]||0}"></label>
-    <label>หมายเหตุ<textarea id="modalNote"></textarea></label>
-    <button class="primary-btn wide" onclick="updateStatus('${taskId}')">บันทึกสถานะ</button>`);
+  $$("[data-setting]").forEach(sel => {
+    const key = sel.dataset.setting;
+    const arr = state.settings[key] || [];
+    fillSelect(sel, arr, key);
+  });
+
+  const whOpts = state.warehouses.map(w => ({
+    value: w["Warehouse ID"],
+    label: `${w["Warehouse Name"] || w["Warehouse ID"]} (${w["Warehouse ID"]})`
+  }));
+
+  ["taskWarehouseSelect","docWarehouseSelect","calWarehouseSelect","issueWarehouseSelect","checklistWarehouseSelect"].forEach(id => {
+    fillSelectObj($("#" + id), whOpts, "เลือกคลัง");
+  });
+
+  fillSelectObj($("#taskWarehouseFilter"), [{value:"", label:"ทุกคลัง"}, ...whOpts], "ทุกคลัง", false);
+  fillSelect($("#taskStatusFilter"), ["", ...(state.settings["Task Status"] || [])], "ทุกสถานะ", false);
+
+  const docWhFilter = $("#documentWarehouseFilter");
+  if(docWhFilter) fillSelectObj(docWhFilter, [{value:"", label:"ทุกคลัง"}, ...whOpts], "ทุกคลัง", false);
+
+  const docTypeFilter = $("#documentTypeFilter");
+  if(docTypeFilter) fillSelect(docTypeFilter, ["", ...(state.settings["Document Type"] || [])], "ทุกประเภท", false);
+
+  const whStatusFilter = $("#warehouseStatusFilter");
+  if(whStatusFilter) fillSelect(whStatusFilter, ["", ...(state.settings["Warehouse Status"] || [])], "ทุกสถานะ", false);
+
+  const caseSelect = $("#checklistCaseFilter");
+  if(caseSelect){
+    const old = caseSelect.value;
+    const caseTypes = ["", ...new Set(["Standard","Urgent","Small Site","Large Warehouse","Custom", ...normalizeChecklistTemplates(state.checklistTemplates).map(t => t["Case Type"] || "Standard")])];
+    caseSelect.innerHTML = caseTypes.map(v => `<option value="${v}">${v || "ทุกเคส"}</option>`).join("");
+    if(caseTypes.includes(old)) caseSelect.value = old;
+  }
+}
+
+function fillSelect(sel, arr, placeholder="เลือก", clear=true){
+  if(!sel) return;
+  const old = sel.value;
+  const safe = [...new Set((arr || []).map(v => String(v || "").trim()).filter(v => clear ? true : true))];
+  sel.innerHTML = (clear ? `<option value="">${escapeHTML(placeholder)}</option>` : "") +
+    safe.map(v => `<option value="${escapeAttr(v)}">${escapeHTML(v)}</option>`).join("");
+  if([...sel.options].some(o => o.value === old)) sel.value = old;
+}
+
+function fillSelectObj(sel, arr, placeholder="เลือก", clear=true){
+  if(!sel) return;
+  const old = sel.value;
+  const safe = arr || [];
+  sel.innerHTML = (clear ? `<option value="">${escapeHTML(placeholder)}</option>` : "") +
+    safe.map(o => `<option value="${escapeAttr(o.value)}">${escapeHTML(o.label)}</option>`).join("");
+  if([...sel.options].some(o => o.value === old)) sel.value = old;
+}
+
+function escapeHTML(value){
+  return String(value || "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
 }
 async function updateStatus(taskId){
   const t=state.tasks.find(x=>x["Task ID"]===taskId), status=$("#modalStatus").value, progress=$("#modalProgress").value, note=$("#modalNote").value;

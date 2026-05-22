@@ -47,3 +47,18 @@
 - เพิ่มความเสถียรของ Checklist Template: Case Type, Active, Due Offset, Document Required
 - Apps Script ปรับ ensureSheet ให้เติม header ที่ขาดโดยไม่ทำลายข้อมูลเดิม
 - อัปเดต Sheet Settings และ Checklist_Templates เริ่มต้นให้แล้ว
+
+
+## V3.4.6 Data Render Fix
+แก้ปัญหาเชื่อมต่อสำเร็จแต่หน้าเว็บไม่มีข้อมูล
+
+สาเหตุหลักที่เจอ:
+- `renderAll()` เรียก `renderDropdowns()` แต่ไฟล์ script.js เวอร์ชันก่อนหน้าขาดฟังก์ชันนี้ ทำให้ JavaScript error และหยุด render ข้อมูลทั้งหน้า
+- วันที่จาก Google Sheet เป็นรูปแบบ `22/5/2026, 12:51:48` ทำให้ JS บาง browser parse ไม่ได้ จึงกระทบงานที่ต้องตาม/ปฏิทิน
+- เพิ่ม fallback และ try/catch ให้แต่ละ section render แยกกัน ไม่ให้จุดเดียวพังแล้วทั้งเว็บว่าง
+
+วิธีอัปเดต:
+1. อัปโหลด `index.html`, `style.css`, `script.js`, `README.md` ไปทับใน GitHub
+2. อัปเดต `apps-script.gs` ใน Apps Script แล้ว Deploy New version
+3. เปิดเว็บ กด `Command + Shift + R`
+4. ไปที่ Settings ตรวจว่า Spreadsheet ID และ Apps Script URL /exec ถูกต้อง
