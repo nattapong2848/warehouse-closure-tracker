@@ -757,6 +757,82 @@ body { background:linear-gradient(155deg,#f8faff 0%,#fff5ef 45%,#f0f7ff 100%); }
   align-items:center;
 }
 
+/* ── Calendar V3.5.1 improvements ── */
+
+/* date row: วันที่ + ปุ่ม + */
+.cal-date-row {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:4px;
+}
+.cal-add-btn {
+  visibility:hidden;
+  border:0;
+  background:rgba(255,107,0,.12);
+  color:#e85d00;
+  border-radius:6px;
+  width:20px;
+  height:20px;
+  font-size:14px;
+  font-weight:900;
+  line-height:1;
+  padding:0;
+  cursor:pointer;
+  transition:.15s;
+}
+.cal-cell:hover .cal-add-btn { visibility:visible; }
+.cal-add-btn:hover { background:rgba(255,107,0,.25); }
+
+.cal-date-today {
+  background:linear-gradient(135deg,#ff6b00,#ff9a2e);
+  color:#fff;
+  border-radius:8px;
+  padding:2px 7px;
+}
+.cal-today { border:2px solid rgba(255,107,0,.35) !important; }
+.cal-more { font-size:11px; color:#94a3b8; font-weight:800; margin-top:3px; }
+
+/* day panel header */
+.day-panel-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.day-panel-head h4 { margin:0; font-size:15px; }
+
+/* cal task accordion (in day panel) */
+.cal-task-row {
+  border:1px solid #e5eaf2;
+  border-radius:12px;
+  margin-bottom:6px;
+  background:#fff;
+  overflow:hidden;
+}
+.cal-task-row[open] { border-color:rgba(255,107,0,.3); box-shadow:0 2px 12px rgba(255,107,0,.1); }
+.cal-task-row.closed { opacity:.55; }
+.cal-task-row.closed[open] { opacity:1; }
+
+.cal-task-head {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  cursor:pointer;
+  list-style:none;
+}
+.cal-task-head::-webkit-details-marker { display:none; }
+.cal-task-head:hover { background:#fafbff; }
+.cal-task-row[open] .cal-task-head { background:#fff8f4; border-bottom:1px solid #ffe8d4; }
+
+.cal-task-body {
+  padding:10px 12px 12px;
+  animation:slideUp .15s ease;
+}
+
 /* responsive */
 @media(max-width:680px){
   .today-task-grid { grid-template-columns:1fr; }

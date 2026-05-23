@@ -238,7 +238,10 @@
           <div class="calendar-layout">
             <div id="monthCalendar" class="month-calendar"></div>
             <aside class="day-panel">
-              <h4 id="selectedDayTitle">เลือกวันที่</h4>
+              <div class="day-panel-head">
+                <h4 id="selectedDayTitle">เลือกวันที่</h4>
+                <button class="tiny-btn orange" id="addFromCalBtn" onclick="quickAddFromCalendar()" style="display:none">+ เพิ่มงาน</button>
+              </div>
               <div id="selectedDayEvents"></div>
             </aside>
           </div>

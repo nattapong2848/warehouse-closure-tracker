@@ -808,42 +808,205 @@ function renderCalendar(){
   const first=new Date(y,m-1,1), start=new Date(first); start.setDate(1-first.getDay());
   const names=["อา","จ","อ","พ","พฤ","ศ","ส"];
   let html=names.map(n=>`<div class="cal-day-name">${n}</div>`).join("");
+
+  // ✅ รวม calendar events + tasks ที่ยังไม่ปิด
   const byDate={};
-  [...state.calendar,...state.tasks.map(t=>({
-    "Event ID":t["Task ID"],"Warehouse ID":t["Warehouse ID"],"Task ID":t["Task ID"],
-    "Event Title":t["Task Name"],"Event Type":"Task Due","Due Date":t["Due Date"],"Assignee":t.Assignee,Status:t.Status
-  }))].forEach(e=>{ const d=fmtDate(e["Due Date"]||e["Start Date"]); if(!d) return; (byDate[d]||=[]).push(e); });
+  state.calendar.forEach(e=>{
+    const d=fmtDate(e["Due Date"]||e["Start Date"]); if(!d) return;
+    if(e["Calendar Status"]==="เสร็จแล้ว") return;
+    (byDate[d]||=[]).push({...e, _type:"event"});
+  });
+  state.tasks.filter(t=>!isClosed(t)&&t["Due Date"]).forEach(t=>{
+    const d=fmtDate(t["Due Date"]);
+    (byDate[d]||=[]).push({
+      "Event ID":t["Task ID"],"Warehouse ID":t["Warehouse ID"],"Task ID":t["Task ID"],
+      "Event Title":t["Task Name"],"Event Type":"Task Due","Due Date":t["Due Date"],
+      "Assignee":t.Assignee,"Status":t.Status, _type:"task"
+    });
+  });
+
+  const today=todayISO();
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i);
-    const iso=d.toISOString().slice(0,10), arr=byDate[iso]||[];
-    html+=`<div class="cal-cell ${d.getMonth()!==m-1?"other":""}" onclick="selectCalendarDay('${iso}')">
-      <div class="cal-date">${d.getDate()}</div>
-      ${arr.slice(0,3).map(e=>`<div class="cal-event ${daysDiff(iso)<0?"overdue":iso===todayISO()?"today":""}"
-        onclick="event.stopPropagation();openEventDetail('${escapeAttr(e["Event ID"]||"")}','${escapeAttr(e["Task ID"]||"")}')">${escapeHTML(e["Event Title"]||"")}</div>`).join("")}
-      ${arr.length>3?`<small>+${arr.length-3} more</small>`:""}
+    const iso=d.toISOString().slice(0,10);
+    const arr=byDate[iso]||[];
+    const isOther=d.getMonth()!==m-1;
+    const isToday=iso===today;
+    const hasOverdue=arr.some(e=>daysDiff(iso)<0);
+    html+=`<div class="cal-cell${isOther?" other":""}${isToday?" cal-today":""}"
+      onclick="selectCalendarDay('${iso}')">
+      <div class="cal-date-row">
+        <span class="cal-date${isToday?" cal-date-today":""}">${d.getDate()}</span>
+        <button class="cal-add-btn" title="เพิ่มงานวันนี้"
+          onclick="event.stopPropagation();quickAddFromCalendar('${iso}')">+</button>
+      </div>
+      ${arr.slice(0,3).map(e=>{
+        const cls=hasOverdue&&daysDiff(iso)<0?"overdue":isToday?"today":"";
+        return `<div class="cal-event ${cls}" title="${escapeAttr(e["Event Title"]||"")}"
+          onclick="event.stopPropagation();selectCalendarDay('${iso}')">${escapeHTML((e["Event Title"]||"").slice(0,22)+(e["Event Title"]?.length>22?"…":""))}</div>`;
+      }).join("")}
+      ${arr.length>3?`<div class="cal-more">+${arr.length-3}</div>`:""}
     </div>`;
   }
   const mc=$("#monthCalendar"); if(mc){ mc.innerHTML=html; renderSelectedDay(); }
 }
 
-function selectCalendarDay(iso){ state.selectedCalendarDate=iso; renderSelectedDay(); }
+function selectCalendarDay(iso){
+  state.selectedCalendarDate=iso;
+  // highlight selected cell
+  $$(".cal-cell").forEach(c=>c.classList.remove("cal-selected"));
+  // find and highlight (by matching date in onclick attr)
+  renderSelectedDay();
+}
 
 function renderSelectedDay(){
-  const title=$("#selectedDayTitle"); if(title) title.textContent=state.selectedCalendarDate||"เลือกวันที่";
-  const arr=[...state.calendar,...state.tasks.map(t=>({
-    "Event ID":t["Task ID"],"Task ID":t["Task ID"],"Warehouse ID":t["Warehouse ID"],
-    "Event Title":t["Task Name"],"Event Type":"Task Due","Due Date":t["Due Date"],"Assignee":t.Assignee
-  }))].filter(e=>fmtDate(e["Due Date"]||e["Start Date"])===state.selectedCalendarDate);
+  const iso=state.selectedCalendarDate;
+  const titleEl=$("#selectedDayTitle");
+  if(titleEl) titleEl.textContent = iso
+    ? new Intl.DateTimeFormat("th-TH",{timeZone:"Asia/Bangkok",weekday:"long",day:"numeric",month:"long"}).format(new Date(iso+"T00:00:00"))
+    : "เลือกวันที่";
+
+  // show/hide add button
+  const addBtn=$("#addFromCalBtn");
+  if(addBtn) addBtn.style.display = iso?"inline-flex":"none";
+
+  if(!iso){ const sde=$("#selectedDayEvents"); if(sde) sde.innerHTML=`<p style="color:#94a3b8;font-size:13px;margin-top:12px">กดที่วันที่เพื่อดูงาน</p>`; return; }
+
+  // รวม events + tasks ของวันนั้น (รวมปิดแล้วด้วยเพื่อดู history)
+  const calItems=state.calendar.filter(e=>fmtDate(e["Due Date"]||e["Start Date"])===iso);
+  const taskItems=state.tasks.filter(t=>fmtDate(t["Due Date"])===iso);
+
   const sde=$("#selectedDayEvents"); if(!sde) return;
-  sde.innerHTML=arr.map(e=>`<div class="mini-card">
-    <div><b>${escapeHTML(e["Event Title"])}</b>
-    <small>${escapeHTML(whName(e["Warehouse ID"]))} · ${escapeHTML(e["Event Type"]||"")}</small></div>
-    ${e["Task ID"]?`<button class="tiny-btn orange" onclick="quickStatus('${escapeAttr(e["Task ID"])}')">งาน</button>`:""}
-  </div>`).join("")||empty("วันนี้ไม่มีแผนงาน");
+  if(!calItems.length && !taskItems.length){
+    sde.innerHTML=`<div style="text-align:center;padding:20px;color:#94a3b8">
+      <div style="font-size:28px;margin-bottom:8px">📭</div>
+      <div style="font-weight:800">ไม่มีงานวันนี้</div>
+      <button class="tiny-btn orange" style="margin-top:12px" onclick="quickAddFromCalendar('${iso}')">+ เพิ่มงานวันนี้</button>
+    </div>`;
+    return;
+  }
+
+  let html="";
+  // Tasks section
+  if(taskItems.length){
+    html+=`<div style="font-size:11px;font-weight:900;color:#94a3b8;letter-spacing:.08em;margin:8px 0 6px">งาน (${taskItems.length})</div>`;
+    html+=taskItems.map(t=>{
+      const closed=isClosed(t);
+      const d=daysDiff(t["Due Date"]);
+      const urgCls=closed?"done":d<0?"danger":d===0?"warn":"";
+      const prog=Number(t["Progress %"]||0);
+      return `<details class="cal-task-row${closed?" closed":""}">
+        <summary class="cal-task-head">
+          <div style="min-width:0;flex:1">
+            <b style="display:block;font-size:13px;font-weight:900">${escapeHTML(t["Task Name"])}</b>
+            <small style="color:#64748b;font-size:11px">${escapeHTML(whName(t["Warehouse ID"]))} · ${escapeHTML(t.Status||"-")}</small>
+          </div>
+          <span class="badge ${urgCls}" style="flex-shrink:0;font-size:11px">${closed?"✅":d<0?"🔥 เลย":d===0?"วันนี้":`${prog}%`}</span>
+        </summary>
+        ${!closed?`<div class="cal-task-body">
+          ${(()=>{
+            const statusList=state.settings["Task Status"]||["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"];
+            const opts=statusList.map(s=>`<option value="${escapeAttr(s)}"${t.Status===s?" selected":""}>${escapeHTML(s)}</option>`).join("");
+            const tid=escapeAttr(t["Task ID"]);
+            return `<div class="ta-form" style="grid-template-columns:1fr 80px">
+              <label>สถานะ<select id="calSt_${tid}">${opts}</select></label>
+              <label>%<input id="calProg_${tid}" type="number" min="0" max="100" value="${prog}"></label>
+            </div>
+            <div class="ta-actions" style="margin-top:8px">
+              <button class="primary-btn" style="padding:7px 14px;font-size:12px"
+                onclick="saveTaskInline('${tid}',this)">💾 บันทึก</button>
+              <button class="tiny-btn orange" onclick="openProfile('${escapeAttr(t["Warehouse ID"])}')">ดูคลัง</button>
+            </div>`;
+          })()}
+        </div>`:""}
+      </details>`;
+    }).join("");
+  }
+
+  // Calendar events section
+  if(calItems.length){
+    html+=`<div style="font-size:11px;font-weight:900;color:#94a3b8;letter-spacing:.08em;margin:12px 0 6px">แผนงาน (${calItems.length})</div>`;
+    html+=calItems.map(e=>`<div class="mini-card" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <div><b style="font-size:13px">${escapeHTML(e["Event Title"])}</b>
+        <small style="display:block;color:#64748b">${escapeHTML(whName(e["Warehouse ID"]))} · ${escapeHTML(e["Event Type"]||"-")}</small></div>
+        <span class="badge" style="font-size:11px;flex-shrink:0">${escapeHTML(e["Calendar Status"]||"-")}</span>
+      </div>
+      ${e["Task ID"]?`<button class="tiny-btn orange" style="align-self:flex-start" onclick="quickStatus('${escapeAttr(e["Task ID"])}')">✏️ แก้งานที่ผูก</button>`:""}
+    </div>`).join("");
+  }
+
+  sde.innerHTML=html;
 }
 
 function changeMonth(n){ const [y,m]=state.calendarCursor.split("-").map(Number); const d=new Date(y,m-1+n,1); state.calendarCursor=d.toISOString().slice(0,7); renderCalendar(); }
 function openEventDetail(id,taskId){ if(taskId) quickStatus(taskId); }
+
+// ── Quick-add task from calendar ──────────────────────────────
+function quickAddFromCalendar(iso){
+  const date = iso || state.selectedCalendarDate || todayISO();
+  const whList = state.warehouses;
+  const whOpts = whList.map(w=>`<option value="${escapeAttr(w["Warehouse ID"])}">${escapeHTML(w["Warehouse Name"])}</option>`).join("");
+  const statusList = state.settings["Task Status"]||["To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด"];
+  const statusOpts = statusList.map(s=>`<option value="${escapeAttr(s)}"${s==="To Do"?" selected":""}>${escapeHTML(s)}</option>`).join("");
+  const phaseOpts = (state.settings["Phase"]||[]).map(p=>`<option value="${escapeAttr(p)}">${escapeHTML(p)}</option>`).join("");
+
+  openModal(`
+    <h3 style="margin:0 0 4px;font-size:20px">📅 เพิ่มงาน</h3>
+    <p style="color:#64748b;margin:0 0 18px;font-size:13px;font-weight:700">Due Date: <b style="color:#ff6b00">${date}</b></p>
+    <div class="form-grid" style="gap:12px">
+      <label style="grid-column:1/-1;font-weight:900;color:#334155;display:flex;flex-direction:column;gap:6px">ชื่องาน *
+        <input id="calAddName" placeholder="ชื่องาน..." autofocus></label>
+      <label style="font-weight:900;color:#334155;display:flex;flex-direction:column;gap:6px">คลัง *
+        <select id="calAddWh">${whOpts}</select></label>
+      <label style="font-weight:900;color:#334155;display:flex;flex-direction:column;gap:6px">เฟส
+        <select id="calAddPhase">${phaseOpts}</select></label>
+      <label style="font-weight:900;color:#334155;display:flex;flex-direction:column;gap:6px">สถานะ
+        <select id="calAddStatus">${statusOpts}</select></label>
+      <label style="font-weight:900;color:#334155;display:flex;flex-direction:column;gap:6px">Assignee
+        <input id="calAddAssignee" placeholder="ผู้รับผิดชอบ"></label>
+      <label style="font-weight:900;color:#334155;display:flex;flex-direction:column;gap:6px">Priority
+        <select id="calAddPriority">
+          ${(state.settings["Priority"]||["สูง","กลาง","ต่ำ"]).map(p=>`<option value="${escapeAttr(p)}"${p==="กลาง"?" selected":""}>${escapeHTML(p)}</option>`).join("")}
+        </select></label>
+    </div>
+    <div class="button-row" style="margin-top:18px">
+      <button class="primary-btn" id="calAddSaveBtn" onclick="submitTaskFromCalendar('${escapeAttr(date)}')">💾 บันทึกงาน</button>
+      <button class="ghost-btn" onclick="closeModal()">ยกเลิก</button>
+    </div>`);
+  setTimeout(()=>$("#calAddName")?.focus(),100);
+}
+
+async function submitTaskFromCalendar(dueDate){
+  const name = $("#calAddName")?.value?.trim();
+  const whId = $("#calAddWh")?.value;
+  if(!name) return toast("กรุณากรอกชื่องาน");
+  if(!whId) return toast("กรุณาเลือกคลัง");
+  const btn=$("#calAddSaveBtn");
+  await withLoading(btn, async()=>{
+    const taskId = uid("T");
+    await postAndRefresh("addTask",{
+      task:{
+        "Task ID":      taskId,
+        "Created Date": todayISO(),
+        "Warehouse ID": whId,
+        "Phase":        $("#calAddPhase")?.value    || "",
+        "Task Name":    name,
+        "Assignee":     $("#calAddAssignee")?.value || "",
+        "Status":       $("#calAddStatus")?.value   || "To Do",
+        "Priority":     $("#calAddPriority")?.value || "กลาง",
+        "Due Date":     dueDate,
+        "Progress %":   0,
+        "Last Updated": todayISO(),
+        "Notes":        ""
+      },
+      createCalendar: true
+    },"เพิ่มงานแล้ว ✅","task");
+    closeModal();
+    state.selectedCalendarDate = dueDate;
+    renderCalendar();
+  });
+}
 
 
 // ════════════════════════════════════════════════════════════
@@ -1310,9 +1473,11 @@ async function updateWarehouseFromModal(warehouseId){
 }
 
 async function saveTaskInline(taskId, btn){
-  const status   = $("#taSt_"  +taskId)?.value || "";
-  const progress = $("#taProg_"+taskId)?.value;
-  const note     = $("#taNote_"+taskId)?.value || "";
+  // รองรับทั้ง prefix taSt_ (profile view) และ calSt_ (calendar day panel)
+  const getVal = (prefixes, id) => { for(const p of prefixes){ const el=$("#"+p+id); if(el) return el.value; } return ""; };
+  const status   = getVal(["taSt_","calSt_"],   taskId);
+  const progress = getVal(["taProg_","calProg_"], taskId);
+  const note     = getVal(["taNote_"],            taskId);
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = "⏳ บันทึก...";
   try {
@@ -1321,9 +1486,11 @@ async function saveTaskInline(taskId, btn){
       progress: progress!==""?Number(progress):null,
       note, user:CONFIG.defaultUser
     },"อัปเดตงานแล้ว ✅","status");
-    // refresh profile view
+    // refresh ตามหน้าที่อยู่
     if(state.currentView==="profiles" && state.selectedWarehouseId)
       openProfile(state.selectedWarehouseId);
+    if(state.currentView==="calendar")
+      renderCalendar();
   } finally {
     btn.disabled=false; btn.textContent=orig;
   }
