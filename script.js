@@ -389,6 +389,7 @@ function renderAll(){
   ];
   jobs.forEach(([name,fn])=>{ try{ fn(); }catch(e){ console.error("Render error:",name,e); } });
   if(state.currentView==="reports") try{ renderDailyReport(); }catch(e){ console.error("Render error: reports",e); }
+  try{ renderNavBadges(); }catch(e){ console.error("Render error: navBadges",e); }
 }
 
 
@@ -417,17 +418,125 @@ function empty(text){ return `<div class="mini-card"><small>${escapeHTML(text)}<
 //  RENDER — DASHBOARD
 // ════════════════════════════════════════════════════════════
 function renderDashboard(){
-  const total=state.tasks.length, done=state.tasks.filter(isClosed).length;
-  const active=state.tasks.filter(t=>!isClosed(t)&&t.Status==="กำลังดำเนินการ").length;
-  const overdue=overdueTasks(state.tasks).length, progress=avgProgress(state.tasks);
-  const set=(id,v)=>{ const el=$("#"+id); if(el) el.textContent=v; };
-  set("kpiWarehouses",state.warehouses.length); set("kpiTasks",total); set("kpiActive",active);
-  set("kpiDone",done); set("kpiOverdue",overdue); set("kpiProgress",progress+"%"); set("overallProgress",progress+"%");
-  const counts={}; state.tasks.forEach(t=>counts[t.Status||"ไม่ระบุ"]=(counts[t.Status||"ไม่ระบุ"]||0)+1);
-  const sb=$("#statusBars"); if(sb) sb.innerHTML=Object.entries(counts).map(([k,v])=>
-    `<div class="bar-row"><span>${escapeHTML(k)}</span><div class="bar-track"><div class="bar-fill" style="width:${total?Math.round(v/total*100):0}%"></div></div><b>${v}</b></div>`
+  const total   = state.tasks.length;
+  const done    = state.tasks.filter(isClosed).length;
+  const active  = state.tasks.filter(t=>!isClosed(t)&&t.Status==="กำลังดำเนินการ").length;
+  const overdue = overdueTasks(state.tasks);
+  const progress= avgProgress(state.tasks);
+  const today   = todayISO();
+
+  // ── KPI cards ──
+  const set = (id,v) => { const el=$("#"+id); if(el) el.textContent=v; };
+  set("kpiWarehouses", state.warehouses.length);
+  set("kpiTasks",      total);
+  set("kpiActive",     active);
+  set("kpiDone",       done);
+  set("kpiOverdue",    overdue.length);
+  set("kpiProgress",   progress+"%");
+  set("overallProgress", progress+"%");
+
+  // ── Today date chip ──
+  const chip = $("#todayDateChip");
+  if(chip) chip.textContent = new Intl.DateTimeFormat("th-TH",{
+    timeZone:"Asia/Bangkok", weekday:"short", day:"numeric", month:"short", year:"numeric"
+  }).format(new Date());
+
+  // ── Alert strip ──
+  const strip = $("#alertStrip");
+  if(strip){
+    const todayTasks  = state.tasks.filter(t=>!isClosed(t)&&t["Due Date"]===today);
+    const openIssues  = state.issues.filter(i=>i.Status!=="Closed"&&i.Status!=="ปิดแล้ว");
+    if(overdue.length===0 && openIssues.length===0){
+      strip.className = "alert-strip ok";
+      strip.classList.remove("hidden");
+      strip.innerHTML = `<span class="alert-title">✅ สถานะดี</span>
+        <span class="alert-chip green" onclick="showView('tasks')">ไม่มีงานเลยกำหนด</span>
+        ${openIssues.length===0?`<span class="alert-chip green">ไม่มี Issues ค้าง</span>`:""}`;
+    } else {
+      strip.className = "alert-strip";
+      strip.classList.remove("hidden");
+      let html = `<span class="alert-title">⚠️ ต้องการการดูแล</span>`;
+      if(overdue.length)    html += `<span class="alert-chip red" onclick="showView('tasks')">🔥 เลยกำหนด ${overdue.length} งาน</span>`;
+      if(todayTasks.length) html += `<span class="alert-chip orange" onclick="showView('tasks')">📅 ครบกำหนดวันนี้ ${todayTasks.length} งาน</span>`;
+      if(openIssues.length) html += `<span class="alert-chip red" onclick="showView('issues')">🚨 Issues ค้าง ${openIssues.length} รายการ</span>`;
+      strip.innerHTML = html;
+    }
+  }
+
+  // ── Today focus section ──
+  const grid = $("#todayTaskGrid");
+  if(grid){
+    // รวม: เลยกำหนด + ครบกำหนดวันนี้ + ใกล้ครบกำหนด (7 วัน)
+    const urgent   = overdue.slice(0,4);
+    const todayDue = state.tasks.filter(t=>!isClosed(t)&&t["Due Date"]===today).slice(0,4);
+    const comingSoon = state.tasks.filter(t=>{
+      if(isClosed(t)) return false;
+      const d=daysDiff(t["Due Date"]);
+      return d!==null && d>0 && d<=7;
+    }).sort((a,b)=>daysDiff(a["Due Date"])-daysDiff(b["Due Date"])).slice(0,4);
+
+    const allShow = [
+      ...urgent.map(t=>({t,cls:"overdue",label:"🔥 เลยกำหนด"})),
+      ...todayDue.filter(t=>!urgent.find(u=>u["Task ID"]===t["Task ID"])).map(t=>({t,cls:"today",label:"📅 วันนี้"})),
+      ...comingSoon.map(t=>({t,cls:"soon",label:`${daysDiff(t["Due Date"])} วัน`}))
+    ];
+
+    if(!allShow.length){
+      grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:20px;color:#64748b;font-weight:800">🎉 ไม่มีงานค้างหรือใกล้ครบกำหนด</div>`;
+    } else {
+      grid.innerHTML = allShow.slice(0,8).map(({t,cls,label})=>`
+        <div class="today-task-card ${cls}">
+          <b>${escapeHTML(t["Task Name"])}</b>
+          <div class="tc-meta">
+            <span class="badge ${cls==="overdue"?"danger":cls==="today"?"warn":""}">${escapeHTML(label)}</span>
+            <small>${escapeHTML(whName(t["Warehouse ID"]))}</small>
+          </div>
+          <small>${escapeHTML(t["Task ID"])} · ${escapeHTML(t.Status||"-")} · Due ${t["Due Date"]||"-"}</small>
+          <div class="tc-actions">
+            <button class="tiny-btn orange" onclick="quickStatus('${escapeAttr(t["Task ID"])}')">แก้สถานะ</button>
+          </div>
+        </div>`).join("");
+    }
+  }
+
+  // ── Status bars ──
+  const counts = {};
+  state.tasks.forEach(t=>counts[t.Status||"ไม่ระบุ"]=(counts[t.Status||"ไม่ระบุ"]||0)+1);
+  const sb = $("#statusBars");
+  if(sb) sb.innerHTML = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+    `<div class="bar-row"><span>${escapeHTML(k)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${total?Math.round(v/total*100):0}%"></div></div>
+      <b>${v}</b></div>`
   ).join("")||empty("ยังไม่มีงาน");
-  const fl=$("#followUpList"); if(fl) fl.innerHTML=dueSoonTasks(state.tasks).slice(0,8).map(taskMini).join("")||empty("ยังไม่มีงานที่ต้องตาม");
+
+  // ── Follow up list ──
+  const fl = $("#followUpList");
+  if(fl) fl.innerHTML = dueSoonTasks(state.tasks).slice(0,8).map(taskMini).join("")||empty("ยังไม่มีงานที่ต้องตาม");
+
+  // อัปเดต nav badges ทุกครั้งที่ render dashboard
+  renderNavBadges();
+}
+
+// ── Navigation notification badges ─────────────────────────
+function renderNavBadges(){
+  const today = todayISO();
+  const overdueCnt  = overdueTasks(state.tasks).length;
+  const todayCnt    = state.tasks.filter(t=>!isClosed(t)&&t["Due Date"]===today).length;
+  const issueCnt    = state.issues.filter(i=>i.Status!=="Closed"&&i.Status!=="ปิดแล้ว").length;
+  const calTodayCnt = state.calendar.filter(e=>{
+    const d = e["Due Date"]||e["Start Date"]||"";
+    return d===today && e["Calendar Status"]!=="เสร็จแล้ว";
+  }).length;
+
+  const setBadge = (id, count, cls="") => {
+    const el = $("#"+id); if(!el) return;
+    el.textContent = count;
+    el.className   = ["nav-badge", cls, count===0?"zero":""].filter(Boolean).join(" ");
+  };
+  setBadge("badgeTasks",     overdueCnt+todayCnt, overdueCnt>0?"":"warn");
+  setBadge("badgeWarehouse", overdueCnt,           "");
+  setBadge("badgeIssues",    issueCnt,             issueCnt>0?"":"warn");
+  setBadge("badgeCalendar",  calTodayCnt,          "warn");
 }
 
 function taskMini(t){
@@ -472,6 +581,7 @@ function renderWarehouseStatus(){
       </div>
       <div class="button-row" style="margin-top:14px">
         <button class="tiny-btn orange" onclick="openProfile('${escapeAttr(w["Warehouse ID"])}')">ดูโปรไฟล์</button>
+        <button class="tiny-btn" onclick="quickEditWarehouse('${escapeAttr(w["Warehouse ID"])}')">✏️ แก้ไขคลัง</button>
         <button class="tiny-btn" onclick="prefillTaskWarehouse('${escapeAttr(w["Warehouse ID"])}')">เพิ่มงาน</button>
         <button class="tiny-btn red" onclick="deleteRecord('Warehouses','${escapeAttr(w["Warehouse ID"])}')">ลบคลัง</button>
       </div>
@@ -511,7 +621,16 @@ function openProfile(id){
   detail.classList.remove("hidden");
   detail.innerHTML=`<section class="panel">
     <div class="panel-head split">
-      <div><h3>${escapeHTML(w["Warehouse Name"])}</h3><span>${escapeHTML(w["Location / Zone"]||"-")} · Owner: ${escapeHTML(w.Owner||"-")}</span></div>
+      <div>
+        <h3>${escapeHTML(w["Warehouse Name"])}</h3>
+        <span>${escapeHTML(w["Location / Zone"]||"-")} · Owner: ${escapeHTML(w.Owner||"-")}</span>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <span class="badge">${escapeHTML(w["Warehouse Status"]||"-")}</span>
+          ${w["Start Date"]?`<span class="badge">เริ่ม: ${escapeHTML(w["Start Date"])}</span>`:""}
+          ${w["Target Handover Date"]?`<span class="badge warn">ส่งมอบ: ${escapeHTML(w["Target Handover Date"])}</span>`:""}
+          <button class="tiny-btn" style="margin-left:4px" onclick="quickEditWarehouse('${escapeAttr(w["Warehouse ID"])}')">✏️ แก้ไขคลัง</button>
+        </div>
+      </div>
       <div class="progress-ring" style="--p:${avgProgress(tasks)}" data-p="${avgProgress(tasks)}%"></div>
     </div>
     <div class="kpi-grid">
@@ -1081,6 +1200,73 @@ async function updateStatus(taskId){
   });
 }
 
+// ─── WAREHOUSE EDIT MODAL ─────────────────────────────────────
+function quickEditWarehouse(warehouseId){
+  const w = state.warehouses.find(x => x["Warehouse ID"] === warehouseId);
+  if(!w) return toast("ไม่พบคลัง " + warehouseId);
+
+  const statusList = state.settings["Warehouse Status"] || ["เปิดดำเนินการ","กำลังปิด","ปิดแล้ว","ระงับ"];
+  const statusOpts = statusList.map(s =>
+    `<option value="${escapeAttr(s)}" ${w["Warehouse Status"]===s?"selected":""}>${escapeHTML(s)}</option>`
+  ).join("");
+
+  openModal(`
+    <h3 style="margin:0 0 4px;font-size:20px">✏️ แก้ไขข้อมูลคลัง</h3>
+    <p style="color:#64748b;margin:0 0 18px;font-size:13px;font-weight:700">${escapeHTML(w["Warehouse ID"])}</p>
+    <div class="form-grid" style="gap:14px">
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">ชื่อคลัง *
+        <input id="we_name" type="text" value="${escapeAttr(w["Warehouse Name"])}" placeholder="ชื่อคลัง"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">Location / Zone
+        <input id="we_zone" type="text" value="${escapeAttr(w["Location / Zone"]||"")}" placeholder="โซน / พื้นที่"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">Owner
+        <input id="we_owner" type="text" value="${escapeAttr(w["Owner"]||"")}" placeholder="ชื่อ Owner"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">Owner Phone
+        <input id="we_phone" type="text" value="${escapeAttr(w["Owner Phone"]||"")}" placeholder="เบอร์โทร"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">วันที่เริ่ม
+        <input id="we_start" type="date" value="${escapeAttr(fmtDate(w["Start Date"]))}"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">วันส่งมอบ (Target)
+        <input id="we_target" type="date" value="${escapeAttr(fmtDate(w["Target Handover Date"]))}"></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#ea580c">สถานะคลัง ★
+        <select id="we_status">${statusOpts}</select></label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">Document Folder Link
+        <input id="we_folder" type="url" value="${escapeAttr(w["Document Folder Link"]||"")}" placeholder="https://drive.google.com/..."></label>
+      <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-weight:800;color:#334155">หมายเหตุ
+        <textarea id="we_notes" rows="3" style="resize:vertical;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px">${escapeHTML(w["Notes"]||"")}</textarea></label>
+    </div>
+    <div class="button-row" style="margin-top:20px">
+      <button class="primary-btn" id="weModalSaveBtn" onclick="updateWarehouseFromModal('${escapeAttr(warehouseId)}')">💾 บันทึก</button>
+      <button class="ghost-btn" onclick="closeModal()">ยกเลิก</button>
+    </div>`);
+}
+
+async function updateWarehouseFromModal(warehouseId){
+  const name = $("#we_name")?.value?.trim();
+  if(!name){ toast("กรุณากรอกชื่อคลัง"); return; }
+
+  const btn = $("#weModalSaveBtn");
+  await withLoading(btn, async () => {
+    const payload = {
+      warehouseId,
+      "Warehouse Name":         name,
+      "Location / Zone":        $("#we_zone")?.value?.trim()   || "",
+      "Owner":                  $("#we_owner")?.value?.trim()  || "",
+      "Owner Phone":            $("#we_phone")?.value?.trim()  || "",
+      "Start Date":             $("#we_start")?.value          || "",
+      "Target Handover Date":   $("#we_target")?.value         || "",
+      "Warehouse Status":       $("#we_status")?.value         || "",
+      "Document Folder Link":   $("#we_folder")?.value?.trim() || "",
+      "Notes":                  $("#we_notes")?.value?.trim()  || "",
+      user: CONFIG.defaultUser
+    };
+    await postAndRefresh("updateWarehouse", payload, "อัปเดตข้อมูลคลังแล้ว ✅", "warehouse");
+    closeModal();
+    // ถ้าอยู่หน้า profiles ให้ refresh detail ด้วย
+    if(state.currentView === "profiles" && state.selectedWarehouseId === warehouseId){
+      openProfile(warehouseId);
+    }
+  });
+}
+
 function prefillTaskWarehouse(id){ showView("addTask"); setTimeout(()=>{ const sel=$("#taskWarehouseSelect"); if(sel) sel.value=id; },100); }
 
 async function deleteRecord(sheet, recordId){
@@ -1178,6 +1364,19 @@ async function demoApi(action, payload){
       "Event Title":task["Task Name"],"Event Type":"กำหนดส่งงาน","Due Date":task["Due Date"],
       "Assignee":task.Assignee,"Calendar Status":"ยังไม่เตือน"
     });
+  }
+  if(action==="updateWarehouse"){
+    const w = state.warehouses.find(x => x["Warehouse ID"] === payload.warehouseId);
+    if(w){
+      const editableFields = [
+        'Warehouse Name','Location / Zone','Owner','Owner Phone',
+        'Start Date','Target Handover Date','Warehouse Status',
+        'Document Folder Link','Notes'
+      ];
+      editableFields.forEach(f => { if(payload[f] !== undefined) w[f] = payload[f]; });
+      w['Updated At'] = new Date().toLocaleString("th-TH");
+      log("Warehouses", payload.warehouseId, "warehouse updated");
+    }
   }
   if(action==="addDocument"){    state.documents.push(payload); log("Documents",payload["Document ID"],"add"); }
   if(action==="addCalendarEvent"){ state.calendar.push(payload); log("Calendar",payload["Event ID"],"add"); }

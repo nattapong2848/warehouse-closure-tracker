@@ -36,14 +36,14 @@
 
       <nav class="side-nav" id="sideNav">
         <button class="nav-btn active" data-view="dashboard"><span>⚡</span>Dashboard</button>
-        <button class="nav-btn" data-view="warehouseStatus"><span>🏢</span>สถานะคลัง</button>
+        <button class="nav-btn" data-view="warehouseStatus"><span>🏢</span>สถานะคลัง <span class="nav-badge warn zero" id="badgeWarehouse">0</span></button>
         <button class="nav-btn" data-view="profiles"><span>🗂️</span>โปรไฟล์คลัง</button>
         <button class="nav-btn" data-view="addWarehouse"><span>＋</span>เพิ่มคลัง</button>
         <button class="nav-btn" data-view="addTask"><span>📦</span>เพิ่มงาน</button>
-        <button class="nav-btn" data-view="tasks"><span>📋</span>รายการงาน</button>
+        <button class="nav-btn" data-view="tasks"><span>📋</span>รายการงาน <span class="nav-badge zero" id="badgeTasks">0</span></button>
         <button class="nav-btn" data-view="documents"><span>📎</span>เอกสาร</button>
-        <button class="nav-btn" data-view="calendar"><span>🗓️</span>ปฏิทิน</button>
-        <button class="nav-btn" data-view="issues"><span>🚨</span>Risks / Issues</button>
+        <button class="nav-btn" data-view="calendar"><span>🗓️</span>ปฏิทิน <span class="nav-badge warn zero" id="badgeCalendar">0</span></button>
+        <button class="nav-btn" data-view="issues"><span>🚨</span>Risks / Issues <span class="nav-badge zero" id="badgeIssues">0</span></button>
         <button class="nav-btn" data-view="checklist"><span>✅</span>Checklist</button>
         <button class="nav-btn" data-view="reports"><span>📣</span>รายงาน</button>
         <button class="nav-btn" data-view="activity"><span>🛰️</span>Activity Log</button>
@@ -74,38 +74,41 @@
       </header>
 
       <section class="view active" id="dashboardView">
-        <div class="hero">
-          <div class="hero-content">
-            <span class="chip">LIVE WAREHOUSE CLOSURE COMMAND</span>
-            <h3>ศูนย์ควบคุมงานปิดคลังแบบ Real-time</h3>
-            <p>ติดตามคลัง งาน เอกสาร ปฏิทิน Risks / Issues และรายการที่ต้องตามในที่เดียว</p>
-            <div class="hero-actions">
-              <button class="primary-btn" data-goto="addTask">สร้างงานใหม่</button>
-              <button class="ghost-light-btn" data-goto="profiles">ดูโปรไฟล์คลัง</button>
-            </div>
+
+        <!-- Alert Strip — แจ้งเตือนอัตโนมัติ -->
+        <div id="alertStrip" class="alert-strip hidden"></div>
+
+        <!-- Today Focus Section -->
+        <div class="today-section">
+          <div class="today-section-head">
+            <h3>📋 วันนี้ต้องทำ &amp; ใกล้ครบกำหนด</h3>
+            <span class="today-date-chip" id="todayDateChip">—</span>
           </div>
-          <div class="radar">
-            <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
-            <div class="radar-core"><strong id="overallProgress">0%</strong><span>PROJECT<br>PROGRESS</span></div>
+          <div id="todayTaskGrid" class="today-task-grid">
+            <div class="skeleton" style="height:70px"></div>
+            <div class="skeleton" style="height:70px"></div>
+            <div class="skeleton" style="height:70px"></div>
           </div>
         </div>
 
+        <!-- KPI Cards -->
         <div class="kpi-grid">
-          <article class="kpi"><span>🏢</span><p>คลังทั้งหมด</p><strong id="kpiWarehouses">0</strong><small>Warehouse profiles</small></article>
+          <article class="kpi"><span>🏢</span><p>คลังทั้งหมด</p><strong id="kpiWarehouses">0</strong><small>Warehouse</small></article>
           <article class="kpi"><span>📦</span><p>งานทั้งหมด</p><strong id="kpiTasks">0</strong><small>Total tasks</small></article>
-          <article class="kpi"><span>🚚</span><p>กำลังเดิน</p><strong id="kpiActive">0</strong><small>In motion</small></article>
           <article class="kpi"><span>✅</span><p>ปิดแล้ว</p><strong id="kpiDone">0</strong><small>Completed</small></article>
-          <article class="kpi danger"><span>🔥</span><p>เลยกำหนด</p><strong id="kpiOverdue">0</strong><small>Need action</small></article>
-          <article class="kpi"><span>📈</span><p>ความคืบหน้า</p><strong id="kpiProgress">0%</strong><small>Average progress</small></article>
+          <article class="kpi danger"><span>🔥</span><p>เลยกำหนด</p><strong id="kpiOverdue">0</strong><small>Need action!</small></article>
+          <article class="kpi"><span>🚚</span><p>กำลังเดิน</p><strong id="kpiActive">0</strong><small>In motion</small></article>
+          <article class="kpi"><span>📈</span><p>ความคืบหน้า</p><strong id="kpiProgress">0%</strong><small id="overallProgress" style="font-size:18px;font-weight:900;color:#ff6b00">0%</small></article>
         </div>
 
+        <!-- Status + Follow up -->
         <div class="grid-2">
           <section class="panel">
-            <div class="panel-head"><h3>สถานะงาน</h3><span>Task status distribution</span></div>
+            <div class="panel-head"><h3>สถานะงานทั้งหมด</h3><span>Task status distribution</span></div>
             <div id="statusBars" class="bars"></div>
           </section>
           <section class="panel">
-            <div class="panel-head"><h3>งานที่ต้องตาม</h3><span>Due soon / overdue / blocked</span></div>
+            <div class="panel-head"><h3>รายการงานที่ต้องติดตาม</h3><span>Due soon / overdue</span></div>
             <div id="followUpList" class="follow-list"></div>
           </section>
         </div>
