@@ -666,9 +666,102 @@ body { background:linear-gradient(155deg,#f8faff 0%,#fff5ef 45%,#f0f7ff 100%); }
 .kpi { min-height:130px; padding:16px; }
 .kpi strong { font-size:30px; }
 
+/* ── Accordion task rows (profile view) ── */
+.task-accordion {
+  border:1px solid #e5eaf2;
+  border-radius:16px;
+  margin-bottom:8px;
+  background:#fff;
+  overflow:hidden;
+  transition:box-shadow .15s;
+}
+.task-accordion[open] {
+  box-shadow:0 4px 20px rgba(255,107,0,.12);
+  border-color:rgba(255,107,0,.35);
+}
+.task-accordion.closed { opacity:.65; }
+.task-accordion.closed[open] { opacity:1; }
+
+.task-accordion-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:13px 16px;
+  cursor:pointer;
+  list-style:none;
+  user-select:none;
+}
+.task-accordion-head::-webkit-details-marker { display:none; }
+.task-accordion-head:hover { background:#fafbff; }
+.task-accordion[open] .task-accordion-head { background:#fff8f4; border-bottom:1px solid #ffe8d4; }
+
+.ta-left {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+.ta-name  { font-size:14px; font-weight:900; color:#0b1220; }
+.ta-meta  { font-size:12px; color:#64748b; font-weight:700; }
+
+.ta-right {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink:0;
+}
+.ta-bar {
+  width:72px;
+  height:6px;
+  background:#e5eaf2;
+  border-radius:999px;
+  overflow:hidden;
+}
+.ta-fill {
+  height:100%;
+  border-radius:inherit;
+  transition:width .3s;
+  min-width:3px;
+}
+
+.task-accordion-body {
+  padding:14px 16px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  animation:slideUp .18s ease;
+}
+.ta-form {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.ta-form label {
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  font-size:12px;
+  font-weight:900;
+  color:#475569;
+}
+.ta-form input,
+.ta-form select {
+  padding:8px 10px;
+  font-size:13px;
+  border-radius:10px;
+}
+.ta-actions {
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
 /* responsive */
 @media(max-width:680px){
   .today-task-grid { grid-template-columns:1fr; }
   .hero h3 { font-size:20px; }
+  .ta-form { grid-template-columns:1fr; }
+  .ta-bar { display:none; }
 }
 
