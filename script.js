@@ -642,8 +642,50 @@ function openProfile(id){
       <article class="kpi danger"><p>Issues</p><strong>${issues.filter(i=>i.Status!=="Closed").length}</strong></article>
     </div>
     <div class="grid-2">
-      <div><h3>งานของคลังนี้</h3>${tasks.map(taskMini).join("")||empty("ไม่มีงาน")}</div>
-      <div><h3>เอกสารของคลังนี้</h3>${docs.map(d=>`
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">งานของคลังนี้</h3>
+          <button class="tiny-btn" onclick="prefillTaskWarehouse('${escapeAttr(id)}')">+ เพิ่มงาน</button>
+        </div>
+        ${tasks.map(t=>{
+          const d=daysDiff(t["Due Date"]);
+          const urgCls=d<0?"danger":d===0?"warn":"";
+          const prog=Number(t["Progress %"]||0);
+          const closed=isClosed(t);
+          const statusList=state.settings["Task Status"]||["Backlog","To Do","กำลังดำเนินการ","รอเอกสาร","รอ Vendor","ติดขัด","ปิดแล้ว"];
+          const statusOpts=statusList.map(s=>`<option value="${escapeAttr(s)}"${t.Status===s?" selected":""}>${escapeHTML(s)}</option>`).join("");
+          const tid=escapeAttr(t["Task ID"]);
+          return `<details class="task-accordion${closed?" closed":""}">
+            <summary class="task-accordion-head">
+              <div class="ta-left">
+                <span class="ta-name">${escapeHTML(t["Task Name"])}</span>
+                <span class="ta-meta">${escapeHTML(t["Task ID"])} · Due ${t["Due Date"]||"-"} · ${escapeHTML(t.Status||"-")}</span>
+              </div>
+              <div class="ta-right">
+                <div class="ta-bar"><div class="ta-fill" style="width:${prog}%;background:${prog>=100?"#22c55e":d<0?"#ef4444":"#ff6b00"}"></div></div>
+                <span class="badge ${urgCls}" style="white-space:nowrap;flex-shrink:0">${d<0?"🔥 เลย":d===0?"📅 วันนี้":closed?"✅ ปิด":(d??"-")+" วัน"}</span>
+              </div>
+            </summary>
+            <div class="task-accordion-body">
+              <div class="ta-form">
+                <label>สถานะ<select id="taSt_${tid}">${statusOpts}</select></label>
+                <label>Progress %<input id="taProg_${tid}" type="number" min="0" max="100" value="${prog}"></label>
+                <label style="grid-column:1/-1">หมายเหตุ<input id="taNote_${tid}" placeholder="เพิ่มเติม..." value="${escapeAttr(t.Notes||"")}"></label>
+              </div>
+              <div class="ta-actions">
+                <button class="primary-btn" style="padding:9px 16px;font-size:13px"
+                  onclick="saveTaskInline('${tid}',this)">💾 บันทึก</button>
+                <button class="tiny-btn red" onclick="deleteRecord('Tasks','${tid}')">ลบงาน</button>
+              </div>
+            </div>
+          </details>`;
+        }).join("")||empty("ไม่มีงาน")}
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">เอกสารของคลังนี้</h3>
+        </div>
+        ${docs.map(d=>`
         <div class="mini-card"><div><b>${escapeHTML(d["Document Name"])}</b>
         <small>${escapeHTML(d["Document Type"])} · ${escapeHTML(d["Document Status"]||"-")}</small></div>
         <a class="tiny-btn orange" href="${escapeAttr(d["File Link"]||"#")}" target="_blank">เปิด</a>
@@ -1265,6 +1307,26 @@ async function updateWarehouseFromModal(warehouseId){
       openProfile(warehouseId);
     }
   });
+}
+
+async function saveTaskInline(taskId, btn){
+  const status   = $("#taSt_"  +taskId)?.value || "";
+  const progress = $("#taProg_"+taskId)?.value;
+  const note     = $("#taNote_"+taskId)?.value || "";
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "⏳ บันทึก...";
+  try {
+    await postAndRefresh("updateStatus",{
+      taskId, status,
+      progress: progress!==""?Number(progress):null,
+      note, user:CONFIG.defaultUser
+    },"อัปเดตงานแล้ว ✅","status");
+    // refresh profile view
+    if(state.currentView==="profiles" && state.selectedWarehouseId)
+      openProfile(state.selectedWarehouseId);
+  } finally {
+    btn.disabled=false; btn.textContent=orig;
+  }
 }
 
 function prefillTaskWarehouse(id){ showView("addTask"); setTimeout(()=>{ const sel=$("#taskWarehouseSelect"); if(sel) sel.value=id; },100); }
