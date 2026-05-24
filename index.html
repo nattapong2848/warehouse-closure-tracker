@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SPX Closure V3.4.1 | Legendary Control Tower</title>
+  <title>SPX Closure V3.5 | Control Tower</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -36,7 +36,7 @@
 
       <nav class="side-nav" id="sideNav">
         <button class="nav-btn active" data-view="dashboard"><span>⚡</span>Dashboard</button>
-        <button class="nav-btn" data-view="warehouseStatus"><span>🏢</span>สถานะคลัง <span class="nav-badge warn zero" id="badgeWarehouse">0</span></button>
+        <button class="nav-btn" data-view="warehouseStatus"><span>🏢</span>สถานะคลัง <span class="nav-badge zero" id="badgeWarehouse">0</span></button>
         <button class="nav-btn" data-view="profiles"><span>🗂️</span>โปรไฟล์คลัง</button>
         <button class="nav-btn" data-view="addWarehouse"><span>＋</span>เพิ่มคลัง</button>
         <button class="nav-btn" data-view="addTask"><span>📦</span>เพิ่มงาน</button>
@@ -74,41 +74,35 @@
       </header>
 
       <section class="view active" id="dashboardView">
+        <div id="alertStrip" class="alert-strip ok hidden"></div>
 
-        <!-- Alert Strip — แจ้งเตือนอัตโนมัติ -->
-        <div id="alertStrip" class="alert-strip hidden"></div>
-
-        <!-- Today Focus Section -->
         <div class="today-section">
           <div class="today-section-head">
-            <h3>📋 วันนี้ต้องทำ &amp; ใกล้ครบกำหนด</h3>
-            <span class="today-date-chip" id="todayDateChip">—</span>
+            <div>
+              <h3>งานวันนี้</h3>
+              <span class="today-date-chip" id="todayDateChip"></span>
+            </div>
+            <button class="primary-btn" data-goto="addTask">+ เพิ่มงาน</button>
           </div>
-          <div id="todayTaskGrid" class="today-task-grid">
-            <div class="skeleton" style="height:70px"></div>
-            <div class="skeleton" style="height:70px"></div>
-            <div class="skeleton" style="height:70px"></div>
-          </div>
+          <div id="todayTaskGrid" class="today-task-grid"></div>
         </div>
 
-        <!-- KPI Cards -->
         <div class="kpi-grid">
-          <article class="kpi"><span>🏢</span><p>คลังทั้งหมด</p><strong id="kpiWarehouses">0</strong><small>Warehouse</small></article>
-          <article class="kpi"><span>📦</span><p>งานทั้งหมด</p><strong id="kpiTasks">0</strong><small>Total tasks</small></article>
-          <article class="kpi"><span>✅</span><p>ปิดแล้ว</p><strong id="kpiDone">0</strong><small>Completed</small></article>
-          <article class="kpi danger"><span>🔥</span><p>เลยกำหนด</p><strong id="kpiOverdue">0</strong><small>Need action!</small></article>
-          <article class="kpi"><span>🚚</span><p>กำลังเดิน</p><strong id="kpiActive">0</strong><small>In motion</small></article>
-          <article class="kpi"><span>📈</span><p>ความคืบหน้า</p><strong id="kpiProgress">0%</strong><small id="overallProgress" style="font-size:18px;font-weight:900;color:#ff6b00">0%</small></article>
+          <article class="kpi"><span>🏢</span><p>คลังทั้งหมด</p><strong id="kpiWarehouses">0</strong></article>
+          <article class="kpi"><span>📦</span><p>งานทั้งหมด</p><strong id="kpiTasks">0</strong></article>
+          <article class="kpi"><span>🚚</span><p>กำลังเดิน</p><strong id="kpiActive">0</strong></article>
+          <article class="kpi"><span>✅</span><p>ปิดแล้ว</p><strong id="kpiDone">0</strong></article>
+          <article class="kpi danger"><span>🔥</span><p>เลยกำหนด</p><strong id="kpiOverdue">0</strong></article>
+          <article class="kpi"><span>📈</span><p>ความคืบหน้า</p><strong id="kpiProgress">0%</strong><small id="overallProgress">0%</small></article>
         </div>
 
-        <!-- Status + Follow up -->
         <div class="grid-2">
           <section class="panel">
-            <div class="panel-head"><h3>สถานะงานทั้งหมด</h3><span>Task status distribution</span></div>
+            <div class="panel-head"><h3>สถานะงาน</h3><span>Task status distribution</span></div>
             <div id="statusBars" class="bars"></div>
           </section>
           <section class="panel">
-            <div class="panel-head"><h3>รายการงานที่ต้องติดตาม</h3><span>Due soon / overdue</span></div>
+            <div class="panel-head"><h3>งานที่ต้องตาม</h3><span>Due soon / overdue / blocked</span></div>
             <div id="followUpList" class="follow-list"></div>
           </section>
         </div>
@@ -240,7 +234,7 @@
             <aside class="day-panel">
               <div class="day-panel-head">
                 <h4 id="selectedDayTitle">เลือกวันที่</h4>
-                <button class="tiny-btn orange" id="addFromCalBtn" onclick="quickAddFromCalendar()" style="display:none">+ เพิ่มงาน</button>
+                <button class="ghost-btn" id="addFromCalBtn" onclick="quickAddFromCalendar(state.selectedCalendarDate)" style="display:none">+ เพิ่มงาน</button>
               </div>
               <div id="selectedDayEvents"></div>
             </aside>
