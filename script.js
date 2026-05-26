@@ -12,10 +12,7 @@ const DEFAULT_SHEET_ID = '1NOBa-cFOiarcPzqe2i9IkpU7IkgV9ndUd6_0jpJdx9w';
 // วิธีใช้: ถ้าอยากให้ทุกเครื่องจำการเชื่อมต่อ Google Sheets ทันที ให้ใส่ URL /exec ตรงนี้
 // ตัวอย่าง: const DEFAULT_API_URL = 'https://script.google.com/macros/s/XXXXX/exec';
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwSPfA2NPGNYo99RK5TE74K5r21z5wpb39mIkdkdtUVg4n-J_Q-t1g7HTxZFGwXCf17/exec';
-
-if (DEFAULT_API_URL) {
-  localStorage.setItem('wm_api_url', DEFAULT_API_URL);
-}
+if (DEFAULT_API_URL) { localStorage.setItem('wm_api_url', DEFAULT_API_URL); }
 
 // Auto-migrate: ถ้า localStorage เก็บ Sheet ID เก่า ให้เปลี่ยนเป็นอันใหม่
 (function migrateSheetId() {
@@ -99,20 +96,22 @@ function getUsers() {
   return defaults;
 }
 
-function saveUsers(arr) {
+async function saveUsers(arr) {
   const clean = normalizeUsers(arr);
   if (state) state.users = clean;
   localStorage.setItem('wm_users', JSON.stringify(clean));
 
-  // Live mode: sync user list to Google Sheets. Fire-and-forget so UI stays fast.
+  // Live mode: ต้องบันทึกลง Google Sheets ให้สำเร็จก่อนค่อยบอกว่าสำเร็จ
   if (CONFIG.apiUrl) {
-    api('saveUsers', { users: clean })
-      .then(() => loadAllData())
-      .catch(err => {
-        console.error('[saveUsers online]', err);
-        toast('บันทึกผู้ใช้ลงออนไลน์ไม่สำเร็จ: ' + (err.message || err), 'error');
-      });
+    try {
+      await api('saveUsers', { users: clean, user: getCurrentUser()?.username || 'System' });
+      try { await getOnlineUsers(); } catch (_) {}
+    } catch (err) {
+      console.error('[saveUsers online]', err);
+      throw new Error('บันทึกผู้ใช้ลงออนไลน์ไม่สำเร็จ: ' + (err.message || err));
+    }
   }
+  return clean;
 }
 
 async function getOnlineUsers() {
@@ -169,7 +168,7 @@ async function handleLogin(e) {
     else fixedUsers.unshift(match);
 
     // อัปเดต localStorage และ sync กลับ Google Sheets ถ้ามี API URL
-    saveUsers(fixedUsers);
+    saveUsers(fixedUsers).catch(err => console.warn('[admin fallback saveUsers]', err));
   }
 
   if (!match) {
@@ -1697,16 +1696,20 @@ function renderUserList() {
   }).join('') || '<div class="empty-state-sm">ยังไม่มีผู้ใช้</div>';
 }
 
-function cycleRole(username) {
+async function cycleRole(username) {
   const roles = ['user','admin','viewer'];
   const users = getUsers();
   const u = users.find(x => x.username === username);
   if (!u) return;
   const nextRole = roles[(roles.indexOf(u.role) + 1) % roles.length];
   u.role = nextRole;
-  saveUsers(users);
-  renderUserList();
-  toast(`เปลี่ยน role "${username}" เป็น ${nextRole} ✓`, 'success');
+  try {
+    await saveUsers(users);
+    renderUserList();
+    toast(`เปลี่ยน role "${username}" เป็น ${nextRole} ✓`, 'success');
+  } catch (err) {
+    toast(err.message || String(err), 'error');
+  }
 }
 
 function togglePwVis(inputId, btn) {
@@ -1744,7 +1747,7 @@ function openChangePassword(username) {
   openModal('changePasswordModal');
 }
 
-function submitChangePassword(e) {
+async function submitChangePassword(e) {
   e.preventDefault();
   const username = document.getElementById('cpwTargetUsername').value;
   const newPw    = document.getElementById('cpwNew').value;
@@ -1757,12 +1760,17 @@ function submitChangePassword(e) {
   const u = users.find(x => x.username === username);
   if (!u) return showErr('ไม่พบผู้ใช้');
   u.passwordHash = simpleHash(newPw);
-  saveUsers(users);
-  closeModal();
-  toast(`เปลี่ยนรหัสผ่านของ "${username}" แล้ว ✓`, 'success');
+  try {
+    await saveUsers(users);
+    closeModal();
+    renderUserList();
+    toast(`เปลี่ยนรหัสผ่านของ "${username}" แล้ว ✓`, 'success');
+  } catch (err) {
+    showErr(err.message || String(err));
+  }
 }
 
-function submitAddUser(e) {
+async function submitAddUser(e) {
   e.preventDefault();
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
@@ -1775,21 +1783,29 @@ function submitAddUser(e) {
   const users = getUsers();
   if (users.find(u => u.username === username)) return showErr('ชื่อผู้ใช้นี้มีอยู่แล้ว');
   users.push({ username, passwordHash: simpleHash(password), role });
-  saveUsers(users);
-  closeModal();
-  renderUserList();
-  toast(`เพิ่มผู้ใช้ "${username}" (${role}) แล้ว ✓`, 'success');
-  // reset form fields manually
-  ['newUsername','newUserPassword'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
-  const roleEl = document.getElementById('newUserRole'); if(roleEl) roleEl.value = 'user';
+  try {
+    await saveUsers(users);
+    closeModal();
+    renderUserList();
+    toast(`เพิ่มผู้ใช้ "${username}" (${role}) แล้ว ✓`, 'success');
+    // reset form fields manually
+    ['newUsername','newUserPassword'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+    const roleEl = document.getElementById('newUserRole'); if(roleEl) roleEl.value = 'user';
+  } catch (err) {
+    showErr(err.message || String(err));
+  }
 }
 
-function deleteUser(username) {
+async function deleteUser(username) {
   if (username === 'admin') return toast('ไม่สามารถลบ admin ได้', 'error');
   const users = getUsers().filter(u => u.username !== username);
-  saveUsers(users);
-  renderUserList();
-  toast(`ลบผู้ใช้ "${username}" แล้ว`, 'success');
+  try {
+    await saveUsers(users);
+    renderUserList();
+    toast(`ลบผู้ใช้ "${username}" แล้ว`, 'success');
+  } catch (err) {
+    toast(err.message || String(err), 'error');
+  }
 }
 
 /* Options grid */
