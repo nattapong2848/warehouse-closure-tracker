@@ -11,7 +11,7 @@ const DEFAULT_SHEET_ID = '1NOBa-cFOiarcPzqe2i9IkpU7IkgV9ndUd6_0jpJdx9w';
 // Google Apps Script Web App URL เริ่มต้น
 // วิธีใช้: ถ้าอยากให้ทุกเครื่องจำการเชื่อมต่อ Google Sheets ทันที ให้ใส่ URL /exec ตรงนี้
 // ตัวอย่าง: const DEFAULT_API_URL = 'https://script.google.com/macros/s/XXXXX/exec';
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzV4o9KXmRqjj1je_lL2UTmKTrUSqLl1AYgS30CBEd5ZfJNCOTcl60UbqQu4y4filXb/exec';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyEqqioSDfYpM6oMvZXfEzs3-gAmhpqxmiPzqK2qzbaotnEIGdhw5U-gr9aLFAvqHBc/exec';
 if (DEFAULT_API_URL) { localStorage.setItem('wm_api_url', DEFAULT_API_URL); }
 
 // Auto-migrate: ถ้า localStorage เก็บ Sheet ID เก่า ให้เปลี่ยนเป็นอันใหม่
