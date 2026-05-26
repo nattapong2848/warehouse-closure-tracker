@@ -8,6 +8,11 @@
 ──────────────────────────────────────────────────── */
 const DEFAULT_SHEET_ID = '1NOBa-cFOiarcPzqe2i9IkpU7IkgV9ndUd6_0jpJdx9w';
 
+// Google Apps Script Web App URL เริ่มต้น
+// วิธีใช้: ถ้าอยากให้ทุกเครื่องจำการเชื่อมต่อ Google Sheets ทันที ให้ใส่ URL /exec ตรงนี้
+// ตัวอย่าง: const DEFAULT_API_URL = 'https://script.google.com/macros/s/XXXXX/exec';
+const DEFAULT_API_URL = '';
+
 // Auto-migrate: ถ้า localStorage เก็บ Sheet ID เก่า ให้เปลี่ยนเป็นอันใหม่
 (function migrateSheetId() {
   const stored = localStorage.getItem('wm_sheet_id');
@@ -17,7 +22,8 @@ const DEFAULT_SHEET_ID = '1NOBa-cFOiarcPzqe2i9IkpU7IkgV9ndUd6_0jpJdx9w';
 })();
 
 const CONFIG = {
-  apiUrl:  localStorage.getItem('wm_api_url')   || '',
+  // ลำดับการจำค่า: 1) URL ที่เคยกดบันทึกในเครื่อง 2) DEFAULT_API_URL ในไฟล์นี้ 3) Demo Mode
+  apiUrl:  localStorage.getItem('wm_api_url')   || DEFAULT_API_URL || '',
   sheetId: localStorage.getItem('wm_sheet_id')  || DEFAULT_SHEET_ID
 };
 
@@ -1533,7 +1539,7 @@ function saveApiUrl() {
   CONFIG.apiUrl = url;
   localStorage.setItem('wm_api_url', url);
   renderModeIndicator();
-  toast(url ? 'บันทึก API URL แล้ว' : 'ล้าง URL แล้ว (Demo Mode)', 'success');
+  toast(url ? 'บันทึก API URL แล้ว — เครื่องนี้จะจำการเชื่อมต่อไว้' : 'ล้าง URL แล้ว (Demo Mode)', 'success');
   if (url) loadAllData();
 }
 
@@ -1549,8 +1555,13 @@ async function testApiConnection() {
     const res  = await fetch(`${url}?action=ping&sheetId=${encodeURIComponent(CONFIG.sheetId)}`);
     const json = await res.json();
     if (json.success) {
+      // ทดสอบผ่านแล้วให้จำ URL อัตโนมัติ ไม่ต้องกดบันทึกซ้ำ
+      CONFIG.apiUrl = url;
+      localStorage.setItem('wm_api_url', url);
       statusEl.className = 'api-status-bar success';
-      statusEl.innerHTML = '✅ เชื่อมต่อสำเร็จ — Apps Script ตอบกลับปกติ';
+      statusEl.innerHTML = '✅ เชื่อมต่อสำเร็จ — บันทึก URL แล้ว ออกจากเว็บกลับเข้ามาก็ยังจำได้';
+      renderModeIndicator();
+      loadAllData();
     } else {
       statusEl.className = 'api-status-bar error';
       statusEl.innerHTML = '❌ ผิดพลาด: ' + (json.message || 'ไม่ทราบสาเหตุ');
