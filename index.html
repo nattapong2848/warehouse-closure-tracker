@@ -1,457 +1,1365 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SPX Closure V3.5 | Control Tower</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shopee Terminate — Warehouse Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <script defer src="script.js"></script>
 </head>
 <body>
-  <div class="bg-orbs" aria-hidden="true">
-    <span></span><span></span><span></span><span></span>
+
+<!-- ══════════════════════════════════
+     LOGIN PAGE
+══════════════════════════════════ -->
+<div id="loginPage" class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-icon">🏢</div>
+      <h1 class="login-title">Warehouse Manager</h1>
+      <p class="login-sub">Shopee Terminate Operations</p>
+    </div>
+    <form id="loginForm" class="login-form" onsubmit="handleLogin(event)">
+      <div class="field-group">
+        <label class="field-label">ชื่อผู้ใช้</label>
+        <input type="text" id="loginUsername" class="field-input" placeholder="กรอก username" autocomplete="username" required />
+      </div>
+      <div class="field-group">
+        <label class="field-label">รหัสผ่าน</label>
+        <div class="pw-wrap">
+          <input type="password" id="loginPassword" class="field-input" placeholder="กรอก password" autocomplete="current-password" required />
+          <button type="button" class="pw-toggle" onclick="togglePw('loginPassword',this)">👁</button>
+        </div>
+      </div>
+      <div id="loginError" class="login-error hidden"></div>
+      <button type="submit" class="btn-primary btn-full" id="loginBtn">เข้าสู่ระบบ</button>
+    </form>
+    <p class="login-hint">ค่าเริ่มต้น: admin / admin</p>
   </div>
+</div>
 
-  <div class="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-logo">SPX</div>
-        <div>
-          <h1>Closure V3.4</h1>
-          <p>LEGENDARY CONTROL TOWER</p>
+<!-- ══════════════════════════════════
+     APP CONTAINER
+══════════════════════════════════ -->
+<div id="appContainer" class="app-container hidden">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">🏢</div>
+      <div class="sidebar-brand">
+        <span class="sidebar-name">WH Manager</span>
+        <span class="sidebar-version">v4.0</span>
+      </div>
+      <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="ย่อ/ขยาย">☰</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard',this)">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-label">Dashboard</span>
+        <span class="nav-badge hidden" id="badgeDashboard"></span>
+      </button>
+      <button class="nav-item" data-section="warehouse" onclick="showSection('warehouse',this)">
+        <span class="nav-icon">🏢</span>
+        <span class="nav-label">คลัง</span>
+        <span class="nav-badge hidden" id="badgeWarehouse"></span>
+      </button>
+      <button class="nav-item" data-section="tasks" onclick="showSection('tasks',this)">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">งาน</span>
+        <span class="nav-badge hidden" id="badgeTasks"></span>
+      </button>
+      <button class="nav-item" data-section="documents" onclick="showSection('documents',this)">
+        <span class="nav-icon">📎</span>
+        <span class="nav-label">เอกสาร</span>
+      </button>
+      <button class="nav-item" data-section="calendar" onclick="showSection('calendar',this)">
+        <span class="nav-icon">🗓️</span>
+        <span class="nav-label">ปฏิทิน</span>
+        <span class="nav-badge hidden" id="badgeCalendar"></span>
+      </button>
+      <button class="nav-item" data-section="reports" onclick="showSection('reports',this)">
+        <span class="nav-icon">📣</span>
+        <span class="nav-label">รายงาน</span>
+      </button>
+      <button class="nav-item" data-section="settings" onclick="showSection('settings',this)">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">ตั้งค่า</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div class="user-info">
+          <span class="user-name" id="userNameDisplay">Admin</span>
+          <span class="user-role" id="userRoleDisplay">admin</span>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="handleLogout()" title="ออกจากระบบ">⏻</button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- TOP BAR -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <h2 class="page-title" id="pageTitle">Dashboard</h2>
+      </div>
+      <div class="top-bar-right">
+        <span class="top-date" id="topDate"></span>
+        <button class="btn-icon" onclick="refreshData()" title="รีเฟรช">🔄</button>
+      </div>
+    </header>
+
+    <!-- ══════════════ DASHBOARD ══════════════ -->
+    <section id="sec-dashboard" class="section active">
+
+      <!-- Dashboard Hero -->
+      <div class="dash-hero">
+        <div class="dash-hero-dots"></div>
+        <div class="dash-hero-content">
+          <div class="dash-hero-greeting" id="dashHeroGreeting">สวัสดี!</div>
+          <div class="dash-hero-sub" id="dashHeroDate"></div>
+        </div>
+        <div class="dash-hero-right">
+          <div class="dash-hero-date">⏰ เวลา</div>
+          <div class="dash-hero-time" id="dashHeroTime">--:--:--</div>
         </div>
       </div>
 
-      <div class="mission-card">
-        <div class="mission-top">
-          <span class="pulse-dot" id="syncDot"></span>
-          <span>MISSION STATUS</span>
+      <!-- KPI Cards -->
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card" onclick="filterAndGo('warehouse','all')">
+          <div class="kpi-icon">🏢</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiWH">—</div>
+            <div class="kpi-label">คลังทั้งหมด</div>
+          </div>
+          <div class="kpi-arrow">›</div>
         </div>
-        <strong id="syncText">Ready for sync</strong>
-        <small id="syncSubText">Google Sheet Sync</small>
+        <div class="kpi-card" onclick="filterAndGo('tasks','all')">
+          <div class="kpi-icon">📋</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiTasks">—</div>
+            <div class="kpi-label">งานทั้งหมด</div>
+          </div>
+          <div class="kpi-arrow">›</div>
+        </div>
+        <div class="kpi-card accent-blue" onclick="filterAndGo('tasks','todo')">
+          <div class="kpi-icon">📌</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiTodo">—</div>
+            <div class="kpi-label">งานที่ต้องทำ</div>
+          </div>
+          <div class="kpi-arrow">›</div>
+        </div>
+        <div class="kpi-card accent-amber" onclick="filterAndGo('tasks','waiting')">
+          <div class="kpi-icon">⏳</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiWaiting">—</div>
+            <div class="kpi-label">งานที่รอ</div>
+          </div>
+          <div class="kpi-arrow">›</div>
+        </div>
+        <div class="kpi-card accent-green" onclick="filterAndGo('tasks','closed')">
+          <div class="kpi-icon">✅</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiClosed">—</div>
+            <div class="kpi-label">ปิดงานแล้ว</div>
+          </div>
+          <div class="kpi-arrow">›</div>
+        </div>
       </div>
 
-      <nav class="side-nav" id="sideNav">
-        <button class="nav-btn active" data-view="dashboard"><span>⚡</span>Dashboard</button>
-        <button class="nav-btn" data-view="warehouseStatus"><span>🏢</span>สถานะคลัง <span class="nav-badge zero" id="badgeWarehouse">0</span></button>
-        <button class="nav-btn" data-view="profiles"><span>🗂️</span>โปรไฟล์คลัง</button>
-        <button class="nav-btn" data-view="addWarehouse"><span>＋</span>เพิ่มคลัง</button>
-        <button class="nav-btn" data-view="addTask"><span>📦</span>เพิ่มงาน</button>
-        <button class="nav-btn" data-view="tasks"><span>📋</span>รายการงาน <span class="nav-badge zero" id="badgeTasks">0</span></button>
-        <button class="nav-btn" data-view="documents"><span>📎</span>เอกสาร</button>
-        <button class="nav-btn" data-view="calendar"><span>🗓️</span>ปฏิทิน <span class="nav-badge warn zero" id="badgeCalendar">0</span></button>
-        <button class="nav-btn" data-view="issues"><span>🚨</span>Risks / Issues <span class="nav-badge zero" id="badgeIssues">0</span></button>
-        <button class="nav-btn" data-view="checklist"><span>✅</span>Checklist</button>
-        <button class="nav-btn" data-view="reports"><span>📣</span>รายงาน</button>
-        <button class="nav-btn" data-view="activity"><span>🛰️</span>Activity Log</button>
-        <button class="nav-btn" data-view="trash"><span>🗑️</span>ถังขยะ</button>
-        <button class="nav-btn" data-view="settings"><span>⚙️</span>ตั้งค่า</button>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="mini-label">CONTROL SIGNAL</div>
-        <div class="signal-bars"><i></i><i></i><i></i><i></i><i></i></div>
+      <!-- Quick Filters Row -->
+      <div class="dash-filters">
+        <div class="filter-group">
+          <label class="filter-label">คลัง</label>
+          <select id="dashWhFilter" class="filter-select" onchange="renderDashboard()">
+            <option value="">ทั้งหมด</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">งาน</label>
+          <select id="dashTaskFilter" class="filter-select" onchange="renderDashboard()">
+            <option value="">ทั้งหมด</option>
+            <option value="todo">ต้องทำ</option>
+            <option value="waiting">รอดำเนินการ</option>
+            <option value="active">กำลังทำ</option>
+          </select>
+        </div>
       </div>
-    </aside>
 
-    <main class="main">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">SPX EXPRESS CONTROL TOWER</p>
-          <h2 id="pageTitle">Dashboard</h2>
+      <!-- Today's Focus -->
+      <div class="dash-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">📅 งานวันนี้</h3>
+          <button class="btn-sm btn-ghost" onclick="showSection('calendar')">ดูปฏิทิน →</button>
         </div>
-        <div class="top-actions">
-          <div class="time-card">
-            <strong id="clock">--:--:--</strong>
-            <span>BANGKOK TIME</span>
+        <div id="todayTaskGrid" class="today-grid">
+          <div class="empty-state-sm">ไม่มีงานวันนี้ 🎉</div>
+        </div>
+      </div>
+
+      <!-- Follow-up Tasks -->
+      <div class="dash-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">🔔 งานที่ต้องตาม</h3>
+          <span class="badge-count" id="followUpCount">0</span>
+        </div>
+        <div id="followUpGrid" class="today-grid">
+          <div class="empty-state-sm">ไม่มีงานที่ต้องตาม ✓</div>
+        </div>
+      </div>
+
+      <!-- Upcoming Calendar Events -->
+      <div class="dash-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">🗓️ กิจกรรมที่กำลังจะมาถึง</h3>
+          <button class="btn-sm btn-ghost" onclick="showSection('calendar')">ดูทั้งหมด →</button>
+        </div>
+        <div id="upcomingEvents" class="today-grid">
+          <div class="empty-state-sm">ไม่มีกิจกรรมที่กำลังจะมาถึง</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ══════════════ WAREHOUSE ══════════════ -->
+    <section id="sec-warehouse" class="section">
+
+      <!-- Warehouse List View -->
+      <div id="whListView">
+        <div class="section-toolbar">
+          <div class="toolbar-left">
+            <select id="whStatusFilter" class="filter-select" onchange="renderWarehouses()">
+              <option value="">ทั้งหมด</option>
+            </select>
+            <div class="search-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="whSearch" class="search-input" placeholder="ค้นหาคลัง..." oninput="renderWarehouses()" />
+            </div>
           </div>
-          <button class="ghost-btn" id="refreshBtn">Refresh</button>
-          <button class="primary-btn" data-goto="addTask">+ เพิ่มงาน</button>
+          <div class="toolbar-right">
+            <button class="btn-primary" onclick="openModal('addWarehouseModal')">+ เพิ่มคลัง</button>
+          </div>
         </div>
-      </header>
+        <div id="whGrid" class="wh-grid">
+          <div class="empty-state">ยังไม่มีข้อมูลคลัง</div>
+        </div>
+      </div>
 
-      <section class="view active" id="dashboardView">
-        <div id="alertStrip" class="alert-strip ok hidden"></div>
-
-        <div class="today-section">
-          <div class="today-section-head">
+      <!-- Warehouse Profile View -->
+      <div id="whProfileView" class="hidden">
+        <div class="profile-header">
+          <button class="back-btn" onclick="closeProfile()">← กลับ</button>
+          <div class="profile-title-row">
             <div>
-              <h3>งานวันนี้</h3>
-              <span class="today-date-chip" id="todayDateChip"></span>
+              <h2 class="profile-name" id="profileWhName">—</h2>
+              <p class="profile-sub" id="profileWhSub">—</p>
             </div>
-            <button class="primary-btn" data-goto="addTask">+ เพิ่มงาน</button>
-          </div>
-          <div id="todayTaskGrid" class="today-task-grid"></div>
-        </div>
-
-        <div class="kpi-grid">
-          <article class="kpi"><span>🏢</span><p>คลังทั้งหมด</p><strong id="kpiWarehouses">0</strong></article>
-          <article class="kpi"><span>📦</span><p>งานทั้งหมด</p><strong id="kpiTasks">0</strong></article>
-          <article class="kpi"><span>🚚</span><p>กำลังเดิน</p><strong id="kpiActive">0</strong></article>
-          <article class="kpi"><span>✅</span><p>ปิดแล้ว</p><strong id="kpiDone">0</strong></article>
-          <article class="kpi danger"><span>🔥</span><p>เลยกำหนด</p><strong id="kpiOverdue">0</strong></article>
-          <article class="kpi"><span>📈</span><p>ความคืบหน้า</p><strong id="kpiProgress">0%</strong><small id="overallProgress">0%</small></article>
-        </div>
-
-        <div class="grid-2">
-          <section class="panel">
-            <div class="panel-head"><h3>สถานะงาน</h3><span>Task status distribution</span></div>
-            <div id="statusBars" class="bars"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head"><h3>งานที่ต้องตาม</h3><span>Due soon / overdue / blocked</span></div>
-            <div id="followUpList" class="follow-list"></div>
-          </section>
-        </div>
-      </section>
-
-      <section class="view" id="warehouseStatusView">
-        <div class="panel">
-          <div class="panel-head split">
-            <div><h3>สถานะงานของแต่ละคลัง</h3><span>ช่องละคลัง พร้อมงานค้างและปุ่มแก้ไขเร็ว</span></div>
-            <div class="filters"><input id="warehouseStatusSearch" placeholder="ค้นหาคลัง / owner / zone"><select id="warehouseStatusFilter"><option value="">ทุกสถานะ</option></select></div>
-          </div>
-          <div id="warehouseStatusGrid" class="warehouse-status-grid"></div>
-        </div>
-      </section>
-
-      <section class="view" id="profilesView">
-        <div class="panel">
-          <div class="panel-head split">
-            <div><h3>Warehouse Profile Hub</h3><span>เลือกคลังเป็นการ์ด แล้วดูงาน เอกสาร ปฏิทิน และ Issue ของคลังนั้น</span></div>
-            <input id="profileSearch" placeholder="ค้นหาโปรไฟล์คลัง">
-          </div>
-          <div id="profileCards" class="profile-cards"></div>
-        </div>
-        <div id="profileDetail" class="profile-detail hidden"></div>
-      </section>
-
-      <section class="view" id="addWarehouseView">
-        <form class="panel form-panel" id="warehouseForm">
-          <div class="panel-head"><h3>เพิ่มคลัง</h3><span>สร้างโปรไฟล์คลังใหม่</span></div>
-          <div class="form-grid">
-            <label>ชื่อคลัง *<input name="warehouseName" required placeholder="เช่น SPX Bangna"></label>
-            <label>พื้นที่ / โซน<input name="location" placeholder="เช่น บางนา / Zone A"></label>
-            <label>Owner<input name="owner" placeholder="ชื่อผู้รับผิดชอบ"></label>
-            <label>เบอร์ Owner<input name="ownerPhone" placeholder="เบอร์โทร"></label>
-            <label>วันเริ่มปิดคลัง<input type="date" name="startDate"></label>
-            <label>วันเป้าหมายส่งมอบ<input type="date" name="targetDate"></label>
-            <label>สถานะคลัง<select name="status" data-setting="Warehouse Status"></select></label>
-            <label>ลิงก์โฟลเดอร์เอกสาร<input name="folderLink" placeholder="Google Drive folder link"></label>
-            <label class="full">หมายเหตุ<textarea name="notes"></textarea></label>
-          </div>
-          <button class="primary-btn wide" type="submit">บันทึกคลัง</button>
-        </form>
-      </section>
-
-      <section class="view" id="addTaskView">
-        <form class="panel form-panel" id="taskForm">
-          <div class="panel-head"><h3>เพิ่มงาน</h3><span>สร้างงานและผูกกับคลัง</span></div>
-          <div class="form-grid">
-            <label>คลัง *<select name="warehouseId" id="taskWarehouseSelect" required></select></label>
-            <label>เฟสงาน<select name="phase" data-setting="Phase"></select></label>
-            <label class="full">ชื่องาน *<input name="taskName" required placeholder="เช่น นัด Landlord ตรวจพื้นที่"></label>
-            <label>ผู้รับผิดชอบ<input name="assignee" placeholder="Owner"></label>
-            <label>สถานะ<select name="status" data-setting="Task Status"></select></label>
-            <label>ความสำคัญ<select name="priority" data-setting="Priority"></select></label>
-            <label>Due Date<input type="date" name="dueDate"></label>
-            <label>Progress %<input type="number" min="0" max="100" name="progress" value="0"></label>
-            <label class="full">Evidence Link<input name="evidenceLink" placeholder="ลิงก์หลักฐาน / เอกสาร"></label>
-            <label class="full">หมายเหตุ<textarea name="notes"></textarea></label>
-          </div>
-          <label class="checkbox-line"><input type="checkbox" name="createCalendar" checked> เพิ่มลงปฏิทินอัตโนมัติเมื่อมี Due Date</label>
-          <button class="primary-btn wide" type="submit">บันทึกงาน</button>
-        </form>
-      </section>
-
-      <section class="view" id="tasksView">
-        <div class="panel">
-          <div class="panel-head split">
-            <div><h3>รายการงาน</h3><span>ค้นหา กรอง แก้สถานะ ลบงาน</span></div>
-            <div class="filters">
-              <input id="taskSearch" placeholder="ค้นหางาน / owner / note">
-              <select id="taskWarehouseFilter"></select>
-              <select id="taskStatusFilter"></select>
+            <div class="profile-status-wrap">
+              <span class="wh-status-badge" id="profileWhStatus">—</span>
+              <button class="btn-sm btn-outline" onclick="openEditWarehouse()">✏️ แก้ไข</button>
             </div>
           </div>
-          <div class="table-wrap"><table id="tasksTable"></table></div>
+          <div class="profile-meta-row" id="profileMetaRow"></div>
         </div>
-      </section>
 
-      <section class="view" id="documentsView">
-        <div class="panel">
-          <div class="panel-head split">
+        <!-- Profile Tabs -->
+        <div class="profile-tabs">
+          <button class="ptab active" data-tab="ptab-tasks" onclick="switchProfileTab('ptab-tasks',this)">📋 งาน</button>
+          <button class="ptab" data-tab="ptab-docs" onclick="switchProfileTab('ptab-docs',this)">📎 เอกสาร</button>
+          <button class="ptab" data-tab="ptab-schedule" onclick="switchProfileTab('ptab-schedule',this)">🗓️ กำหนดการ</button>
+          <button class="ptab" data-tab="ptab-issues" onclick="switchProfileTab('ptab-issues',this)">⚠️ Issues</button>
+          <button class="ptab" data-tab="ptab-checklist" onclick="switchProfileTab('ptab-checklist',this)">✅ Checklist</button>
+        </div>
+
+        <!-- Tab: งาน -->
+        <div id="ptab-tasks" class="ptab-content active">
+          <div class="ptab-toolbar">
+            <select id="profileTaskStatusFilter" class="filter-select" onchange="renderProfileTasks()">
+              <option value="">สถานะทั้งหมด</option>
+            </select>
+            <button class="btn-primary btn-sm" onclick="openAddTaskInProfile()">+ เพิ่มงาน</button>
+          </div>
+          <div id="profileTaskList" class="task-list"></div>
+        </div>
+
+        <!-- Tab: เอกสาร -->
+        <div id="ptab-docs" class="ptab-content hidden">
+          <div class="ptab-toolbar">
+            <select id="profileDocTypeFilter" class="filter-select" onchange="renderProfileDocs()">
+              <option value="">ประเภทเอกสารทั้งหมด</option>
+            </select>
+            <button class="btn-primary btn-sm" onclick="openAddDocInProfile()">+ เพิ่มเอกสาร</button>
+          </div>
+          <div id="profileDocList" class="doc-list"></div>
+        </div>
+
+        <!-- Tab: กำหนดการ -->
+        <div id="ptab-schedule" class="ptab-content hidden">
+          <div class="ptab-toolbar">
+            <button class="btn-primary btn-sm" onclick="openAddEventInProfile()">+ เพิ่มกิจกรรม</button>
+          </div>
+          <div id="profileScheduleList" class="schedule-list"></div>
+        </div>
+
+        <!-- Tab: Issues -->
+        <div id="ptab-issues" class="ptab-content hidden">
+          <div class="ptab-toolbar">
+            <select id="profileIssueStatusFilter" class="filter-select" onchange="renderProfileIssues()">
+              <option value="">สถานะทั้งหมด</option>
+            </select>
+            <button class="btn-primary btn-sm" onclick="openAddIssueInProfile()">+ เพิ่ม Issue</button>
+          </div>
+          <div id="profileIssueList" class="issue-list"></div>
+        </div>
+
+        <!-- Tab: Checklist -->
+        <div id="ptab-checklist" class="ptab-content hidden">
+          <div class="ptab-toolbar">
+            <button class="btn-outline btn-sm" onclick="applyChecklistTemplate()">📋 ใช้ Template</button>
+            <button class="btn-primary btn-sm" onclick="openAddChecklistItem()">+ เพิ่มรายการ</button>
+          </div>
+          <div id="profileChecklistList" class="checklist-list"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ══════════════ TASKS ══════════════ -->
+    <section id="sec-tasks" class="section">
+      <div class="section-toolbar">
+        <div class="toolbar-left">
+          <select id="taskWhFilter" class="filter-select" onchange="renderTasks()">
+            <option value="">คลังทั้งหมด</option>
+          </select>
+          <select id="taskStatusFilter" class="filter-select" onchange="renderTasks()">
+            <option value="">สถานะทั้งหมด</option>
+          </select>
+          <select id="taskPriorityFilter" class="filter-select" onchange="renderTasks()">
+            <option value="">Priority ทั้งหมด</option>
+          </select>
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="taskSearch" class="search-input" placeholder="ค้นหางาน..." oninput="renderTasks()" />
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn-primary" onclick="openModal('addTaskModal')">+ เพิ่มงาน</button>
+        </div>
+      </div>
+      <div id="taskList" class="task-list"></div>
+    </section>
+
+    <!-- ══════════════ DOCUMENTS ══════════════ -->
+    <section id="sec-documents" class="section">
+      <div class="section-toolbar">
+        <div class="toolbar-left">
+          <div class="filter-toggle-group">
+            <button class="ftoggle active" id="docByWH" onclick="switchDocFilter('wh',this)">📦 ตามคลัง</button>
+            <button class="ftoggle" id="docByType" onclick="switchDocFilter('type',this)">🗂️ ตามประเภท</button>
+          </div>
+          <select id="docFilterSelect" class="filter-select" onchange="renderDocuments()">
+            <option value="">ทั้งหมด</option>
+          </select>
+          <select id="docStatusFilter" class="filter-select" onchange="renderDocuments()">
+            <option value="">สถานะทั้งหมด</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn-primary" onclick="openModal('addDocModal')">+ เพิ่มเอกสาร</button>
+        </div>
+      </div>
+      <div id="docList" class="doc-list"></div>
+    </section>
+
+    <!-- ══════════════ CALENDAR ══════════════ -->
+    <section id="sec-calendar" class="section">
+      <div class="calendar-layout">
+
+        <!-- Calendar Grid -->
+        <div class="cal-panel">
+          <div class="cal-header">
+            <button class="btn-icon" onclick="calNav(-1)">‹</button>
+            <h3 id="calMonthLabel" class="cal-month-label">—</h3>
+            <button class="btn-icon" onclick="calNav(1)">›</button>
+            <button class="btn-sm btn-ghost" onclick="calGoToday()">วันนี้</button>
+          </div>
+          <div class="cal-weekdays">
+            <div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div>
+          </div>
+          <div id="calGrid" class="cal-grid"></div>
+        </div>
+
+        <!-- Day Panel -->
+        <div class="day-panel" id="dayPanel">
+          <div class="day-panel-header">
+            <h3 id="selectedDayTitle" class="day-panel-title">เลือกวัน</h3>
+            <button class="btn-sm btn-primary" id="addFromCalBtn" onclick="quickAddFromCalendar()" style="display:none">+ เพิ่ม</button>
+          </div>
+
+          <!-- Day Tasks -->
+          <div class="day-section">
+            <h4 class="day-section-title">📋 งานในวันนี้</h4>
+            <div id="dayTasks" class="day-items"></div>
+          </div>
+
+          <!-- Day Events (time-sorted) -->
+          <div class="day-section">
+            <h4 class="day-section-title">🗓️ กิจกรรม / คิว</h4>
+            <div id="dayEvents" class="day-items"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════ REPORTS ══════════════ -->
+    <section id="sec-reports" class="section">
+      <div class="section-toolbar">
+        <div class="toolbar-left">
+          <div class="date-range-group">
+            <button class="drange-btn active" data-range="today" onclick="setDateRange('today',this)">วันนี้</button>
+            <button class="drange-btn" data-range="7" onclick="setDateRange('7',this)">7 วัน</button>
+            <button class="drange-btn" data-range="30" onclick="setDateRange('30',this)">30 วัน</button>
+            <button class="drange-btn" data-range="custom" onclick="setDateRange('custom',this)">กำหนดเอง</button>
+          </div>
+          <div id="customRangeInputs" class="custom-range-inputs hidden">
+            <input type="date" id="reportStartDate" class="field-input-sm" onchange="renderReports()" />
+            <span>ถึง</span>
+            <input type="date" id="reportEndDate" class="field-input-sm" onchange="renderReports()" />
+          </div>
+          <select id="reportWhFilter" class="filter-select" onchange="renderReports()">
+            <option value="">คลังทั้งหมด</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn-outline" onclick="copyReport()">📋 คัดลอกรายงาน</button>
+        </div>
+      </div>
+
+      <!-- Report Summary Cards -->
+      <div class="report-kpi-grid" id="reportKpiGrid"></div>
+
+      <!-- Report Content -->
+      <div id="reportContent" class="report-content"></div>
+
+      <!-- Copyable Text -->
+      <textarea id="reportText" class="report-textarea" readonly placeholder="รายงานจะปรากฏที่นี่..."></textarea>
+    </section>
+
+    <!-- ══════════════ SETTINGS ══════════════ -->
+    <section id="sec-settings" class="section">
+
+      <!-- Settings Hero Banner -->
+      <div class="settings-hero">
+        <div class="settings-hero-bg"></div>
+        <div class="settings-hero-content">
+          <div class="settings-hero-left">
+            <div class="settings-hero-icon">⚙️</div>
             <div>
-              <h3>ศูนย์เอกสารรายคลัง</h3>
-              <span>แยกเอกสารตามคลัง + งาน + ประเภทเอกสาร เปิดไฟล์/ลบ/ค้นหาได้จากหน้าเดียว</span>
-            </div>
-            <div class="filters">
-              <input id="documentSearch" placeholder="ค้นหาเอกสาร / Task / ประเภท / ผู้ uploaded">
-              <select id="documentWarehouseFilter"></select>
-              <select id="documentTypeFilter"></select>
+              <h2 class="settings-hero-title">ตั้งค่าระบบ</h2>
+              <p class="settings-hero-sub">จัดการผู้ใช้ · ตัวเลือก · การเชื่อมต่อ · ข้อมูลระบบ</p>
             </div>
           </div>
-          <div id="documentsWarehouseHub" class="documents-warehouse-hub"></div>
+          <div class="settings-stats-banner" id="settingsStatsBanner"></div>
         </div>
+      </div>
 
-        <form class="panel form-panel" id="documentForm">
-          <div class="panel-head split">
-            <div>
-              <h3>เพิ่มเอกสาร</h3>
-              <span>เลือกคลังแล้วแนบลิงก์ Google Drive / หลักฐานเข้ากับคลังนั้น</span>
-            </div>
-            <span class="chip soft-chip">Warehouse-linked Documents</span>
-          </div>
-          <div class="form-grid">
-            <label>คลัง<select name="warehouseId" id="docWarehouseSelect"></select></label>
-            <label>Task ID<input name="taskId" placeholder="optional เช่น T-0001"></label>
-            <label>ประเภทเอกสาร<select name="docType" data-setting="Document Type"></select></label>
-            <label>สถานะเอกสาร<select name="docStatus" data-setting="Document Status"></select></label>
-            <label class="full">ชื่อเอกสาร<input name="docName" required placeholder="เช่น สัญญาเช่า / รูปหลังคืนพื้นที่ / ใบส่งมอบ"></label>
-            <label class="full">File Link<input name="fileLink" placeholder="วางลิงก์ Google Drive / URL เอกสาร"></label>
-            <label>ผู้อัปโหลด<input name="uploadedBy" placeholder="ชื่อผู้เพิ่มเอกสาร"></label>
-            <label class="full">หมายเหตุ<textarea name="notes" placeholder="รายละเอียดเพิ่มเติม เช่น ใช้สำหรับส่งมอบพื้นที่ / รอตรวจสอบจาก Legal"></textarea></label>
-          </div>
-          <button class="primary-btn wide" type="submit">เพิ่มเอกสารเข้าคลัง</button>
-        </form>
-      </section>
+      <!-- Tabs -->
+      <div class="settings-tabs">
+        <button class="stab active" data-tab="stab-api" onclick="switchSettingsTab('stab-api',this)">
+          <span class="stab-icon">🔌</span><span class="stab-text">API</span>
+        </button>
+        <button class="stab" data-tab="stab-users" onclick="switchSettingsTab('stab-users',this)">
+          <span class="stab-icon">👥</span><span class="stab-text">ผู้ใช้</span>
+        </button>
+        <button class="stab" data-tab="stab-options" onclick="switchSettingsTab('stab-options',this)">
+          <span class="stab-icon">🔧</span><span class="stab-text">ตัวเลือก</span>
+        </button>
+        <button class="stab" data-tab="stab-checklist" onclick="switchSettingsTab('stab-checklist',this)">
+          <span class="stab-icon">✅</span><span class="stab-text">Checklist</span>
+        </button>
+        <button class="stab" data-tab="stab-activity" onclick="switchSettingsTab('stab-activity',this)">
+          <span class="stab-icon">📜</span><span class="stab-text">Activity</span>
+        </button>
+        <button class="stab" data-tab="stab-trash" onclick="switchSettingsTab('stab-trash',this)">
+          <span class="stab-icon">🗑️</span><span class="stab-text">ถังขยะ</span>
+        </button>
+      </div>
 
-      <section class="view" id="calendarView">
-        <div class="panel">
-          <div class="panel-head split">
-            <div><h3>ปฏิทินแผนงาน</h3><span>ตารางรายเดือน กดวันที่ดูงาน</span></div>
-            <div class="calendar-controls">
-              <button class="ghost-btn" id="prevMonth">‹</button>
-              <input type="month" id="calendarMonth">
-              <button class="ghost-btn" id="nextMonth">›</button>
-            </div>
-          </div>
-          <div class="calendar-layout">
-            <div id="monthCalendar" class="month-calendar"></div>
-            <aside class="day-panel">
-              <div class="day-panel-head">
-                <h4 id="selectedDayTitle">เลือกวันที่</h4>
-                <button class="ghost-btn" id="addFromCalBtn" onclick="quickAddFromCalendar(state.selectedCalendarDate)" style="display:none">+ เพิ่มงาน</button>
+      <!-- Tab: API -->
+      <div id="stab-api" class="stab-content" style="display:block">
+        <div class="settings-2col">
+          <!-- Connection Card -->
+          <div class="settings-card settings-card-lg">
+            <div class="settings-card-icon-header">
+              <div class="sci-icon">🔌</div>
+              <div>
+                <h3 class="settings-card-title">การเชื่อมต่อ Google Sheets</h3>
+                <p class="settings-card-sub">เชื่อมต่อกับ Google Apps Script Web App</p>
               </div>
-              <div id="selectedDayEvents"></div>
-            </aside>
-          </div>
-        </div>
-        <form class="panel form-panel" id="calendarForm">
-          <div class="panel-head"><h3>เพิ่มแผนงาน</h3><span>สร้างรายการเตือน/กำหนดการ</span></div>
-          <div class="form-grid">
-            <label>คลัง<select name="warehouseId" id="calWarehouseSelect"></select></label>
-            <label>Task ID<input name="taskId" placeholder="optional"></label>
-            <label>ชื่องาน/กิจกรรม<input name="eventTitle" required></label>
-            <label>ประเภท<select name="eventType" data-setting="Event Type"></select></label>
-            <label>Start Date<input type="date" name="startDate"></label>
-            <label>Due Date<input type="date" name="dueDate" required></label>
-            <label>Assignee<input name="assignee"></label>
-            <label>Reminder Days<input type="number" name="reminderDays" value="2"></label>
-            <label class="full">Notes<textarea name="notes"></textarea></label>
-          </div>
-          <button class="primary-btn wide" type="submit">เพิ่มแผนงาน</button>
-        </form>
-      </section>
-
-      <section class="view" id="issuesView">
-        <div class="grid-2">
-          <form class="panel form-panel" id="issueForm">
-            <div class="panel-head"><h3>Risk & Issue Tracker</h3><span>ติดตามปัญหาที่เสี่ยงทำให้ปิดคลังไม่ทัน</span></div>
-            <div class="form-grid one">
-              <label>คลัง<select name="warehouseId" id="issueWarehouseSelect"></select></label>
-              <label>Task ID<input name="taskId"></label>
-              <label>Issue Title<input name="issueTitle" required></label>
-              <label>Impact<textarea name="impact"></textarea></label>
-              <label>Owner<input name="owner"></label>
-              <label>Status<select name="status"><option>Open</option><option>Monitoring</option><option>Closed</option></select></label>
-              <label>Priority<select name="priority" data-setting="Priority"></select></label>
-              <label>Due Date<input type="date" name="dueDate"></label>
-              <label>Solution<textarea name="solution"></textarea></label>
             </div>
-            <button class="primary-btn wide" type="submit">เพิ่ม Issue</button>
-          </form>
-          <section class="panel">
-            <div class="panel-head"><h3>Issue Board</h3><span>Open / Monitoring / Closed</span></div>
-            <div id="issuesList" class="issue-list"></div>
-          </section>
-        </div>
-      </section>
+            <div class="field-group" style="margin-top:20px">
+              <label class="field-label">Apps Script Web App URL</label>
+              <div style="display:flex;gap:8px">
+                <input type="url" id="apiUrlInput" class="field-input" placeholder="https://script.google.com/macros/s/..." />
+              </div>
+            </div>
+            <div class="api-btn-row">
+              <button class="btn-primary" onclick="saveApiUrl()">💾 บันทึก URL</button>
+              <button class="btn-outline" onclick="testApiConnection()">📡 ทดสอบ</button>
+              <button class="btn-ghost" onclick="clearApiUrl()">✕ Demo Mode</button>
+            </div>
+            <div id="apiStatus" class="api-status-bar"></div>
+          </div>
 
-      <section class="view" id="checklistView">
-        <div class="panel">
-          <div class="panel-head split">
+          <!-- Mode Card -->
+          <div class="settings-card">
+            <div class="settings-card-icon-header">
+              <div class="sci-icon">🌐</div>
+              <div>
+                <h3 class="settings-card-title">โหมดการทำงาน</h3>
+                <p class="settings-card-sub">สถานะการเชื่อมต่อปัจจุบัน</p>
+              </div>
+            </div>
+            <div id="modeIndicator" class="mode-indicator" style="margin-top:20px">
+              <div class="mode-indicator-dot-wrap">
+                <span class="mode-dot"></span>
+                <span class="mode-dot-ring"></span>
+              </div>
+              <div>
+                <div class="mode-label">—</div>
+                <div class="mode-sub">ตรวจสอบสถานะ...</div>
+              </div>
+            </div>
+            <div class="mode-cards">
+              <div class="mode-info-card">
+                <span class="mode-info-icon">🟡</span>
+                <div><strong>Demo Mode</strong><br>ข้อมูลในหน่วยความจำชั่วคราว จะหายเมื่อปิดแท็บ</div>
+              </div>
+              <div class="mode-info-card">
+                <span class="mode-info-icon">🟢</span>
+                <div><strong>Live Mode</strong><br>บันทึกลง Google Sheets โดยตรงแบบ Real-time</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Spreadsheet ID Card — Editable -->
+          <div class="settings-card sheet-edit-card">
+            <div class="settings-card-icon-header">
+              <div class="sci-icon">📊</div>
+              <div>
+                <h3 class="settings-card-title">Google Spreadsheet</h3>
+                <p class="settings-card-sub">เปลี่ยน Sheet ที่เชื่อมต่อได้ตลอดเวลา</p>
+              </div>
+            </div>
+            <div class="field-group" style="margin-top:16px">
+              <label class="field-label">วาง Sheet URL หรือ Sheet ID</label>
+              <div class="sheet-input-wrap">
+                <input type="text" id="sheetIdInput" class="field-input"
+                  placeholder="https://docs.google.com/spreadsheets/d/... หรือ ID ตรงๆ" />
+                <button class="sheet-detect-btn" onclick="detectSheetId()" title="ดึง ID อัตโนมัติ">🔍</button>
+              </div>
+              <div class="sheet-id-preview" id="sheetIdPreview"></div>
+            </div>
+            <div class="api-btn-row">
+              <button class="btn-primary" onclick="saveSheetId()">💾 บันทึก Sheet</button>
+              <button class="btn-outline" id="sheetOpenBtn" onclick="openCurrentSheet()" disabled>🔗 เปิด Sheet</button>
+              <button class="btn-ghost" onclick="resetSheetId()">↩ ค่าเริ่มต้น</button>
+            </div>
+            <div class="sheet-current-display" id="sheetCurrentDisplay"></div>
+          </div>
+
+          <!-- Quick Guide Card -->
+          <div class="settings-card settings-guide-card">
+            <div class="settings-card-icon-header">
+              <div class="sci-icon">🚀</div>
+              <div>
+                <h3 class="settings-card-title">คู่มือ Deploy</h3>
+                <p class="settings-card-sub">ขั้นตอนการตั้งค่าแบบย่อ</p>
+              </div>
+            </div>
+            <ol class="guide-steps" style="margin-top:16px">
+              <li class="guide-step"><span class="guide-step-num">1</span> อัปโหลดไฟล์ Sheet ไปที่ Google Drive</li>
+              <li class="guide-step"><span class="guide-step-num">2</span> Extensions → Apps Script → วางโค้ด apps-script.gs</li>
+              <li class="guide-step"><span class="guide-step-num">3</span> Deploy → New Deployment → Web App</li>
+              <li class="guide-step"><span class="guide-step-num">4</span> Copy URL → วางในช่อง API ด้านบน</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Users -->
+      <div id="stab-users" class="stab-content" style="display:none">
+        <div class="settings-card">
+          <div class="settings-card-icon-header">
+            <div class="sci-icon">👥</div>
             <div>
-              <h3>Checklist Builder</h3>
-              <span>แก้ไข เพิ่ม ลบ Template ได้เอง และสร้าง Checklist ให้เหมาะกับแต่ละเคส/คลัง</span>
+              <h3 class="settings-card-title">จัดการผู้ใช้งาน</h3>
+              <p class="settings-card-sub">เพิ่ม ลบ เปลี่ยน Role และรหัสผ่าน</p>
             </div>
-            <div class="filters">
-              <select id="checklistWarehouseSelect"></select>
-              <select id="checklistCaseFilter">
-                <option value="">ทุกเคส</option>
-                <option value="Standard">Standard</option>
-                <option value="Urgent">Urgent</option>
-                <option value="Small Site">Small Site</option>
-                <option value="Large Warehouse">Large Warehouse</option>
-                <option value="Custom">Custom</option>
-              </select>
-              <button class="primary-btn" id="createChecklistBtn" type="button">สร้าง Checklist ให้คลังนี้</button>
-            </div>
+            <button class="btn-primary btn-sm" onclick="openModal('addUserModal')" style="margin-left:auto">+ เพิ่มผู้ใช้</button>
           </div>
+          <div class="user-role-legend">
+            <span class="url-pill" style="color:#dc2626;background:#fef2f2">👑 Admin — เข้าถึงทุกอย่าง</span>
+            <span class="url-pill" style="color:#2563eb;background:#eff6ff">👤 User — ใช้งานทั่วไป</span>
+            <span class="url-pill" style="color:#7c3aed;background:#f5f3ff">👁️ Viewer — ดูได้อย่างเดียว</span>
+          </div>
+          <div id="userList" class="user-grid"></div>
+        </div>
+      </div>
 
-          <div class="checklist-command">
+      <!-- Tab: Options -->
+      <div id="stab-options" class="stab-content" style="display:none">
+        <div class="opt-intro">
+          <span class="opt-intro-icon">🔧</span>
+          <div>
+            <strong>ตัวเลือก Dropdown ของระบบ</strong>
+            <span class="opt-intro-sub">เพิ่ม/ลบค่าตัวเลือกที่ต้องการ ระบบจะโหลดใหม่อัตโนมัติ</span>
+          </div>
+        </div>
+        <div class="options-grid" id="optionsGrid"></div>
+      </div>
+
+      <!-- Tab: Checklist Templates -->
+      <div id="stab-checklist" class="stab-content" style="display:none">
+        <div class="settings-card">
+          <div class="settings-card-icon-header">
+            <div class="sci-icon">✅</div>
             <div>
-              <h4>ระบบนี้ใช้ทำอะไร?</h4>
-              <p>สร้างรายการงานมาตรฐานให้แต่ละคลังอัตโนมัติ เช่น ตรวจสัญญา แจ้งเลิก เคลียร์ทรัพย์สิน คืนสภาพ ส่งมอบ และปิดการเงิน โดยสามารถแก้ Template ตามเคสจริงได้</p>
+              <h3 class="settings-card-title">Checklist Templates</h3>
+              <p class="settings-card-sub">กำหนดรายการงานมาตรฐานสำหรับแต่ละ Phase</p>
             </div>
-            <button class="ghost-btn" id="newChecklistTemplateBtn" type="button">+ เพิ่ม Template ใหม่</button>
+            <button class="btn-primary btn-sm" onclick="openModal('addChecklistTemplateModal')" style="margin-left:auto">+ เพิ่ม</button>
           </div>
-
-          <div id="checklistTemplates" class="template-grid checklist-template-grid"></div>
+          <div id="checklistTemplateList" class="ct-list" style="margin-top:16px"></div>
         </div>
+      </div>
 
-        <form class="panel form-panel hidden" id="checklistTemplateForm">
-          <div class="panel-head split">
+      <!-- Tab: Activity Log -->
+      <div id="stab-activity" class="stab-content" style="display:none">
+        <div class="settings-card">
+          <div class="settings-card-icon-header">
+            <div class="sci-icon">📜</div>
             <div>
-              <h3 id="checklistTemplateFormTitle">เพิ่ม Checklist Template</h3>
-              <span>แก้รายการงานมาตรฐานที่ใช้สร้าง Task อัตโนมัติ</span>
+              <h3 class="settings-card-title">Activity Log</h3>
+              <p class="settings-card-sub">บันทึกการเพิ่ม แก้ไข ลบข้อมูลทั้งหมด</p>
             </div>
-            <button class="ghost-btn" id="cancelChecklistTemplateBtn" type="button">ยกเลิก</button>
+            <button class="btn-ghost btn-sm" onclick="clearActivity()" style="margin-left:auto">🗑️ ล้างทั้งหมด</button>
           </div>
-
-          <input type="hidden" name="templateId">
-
-          <div class="form-grid">
-            <label>Case Type
-              <input name="caseType" list="caseTypeList" placeholder="เช่น Standard / Urgent / Custom">
-              <datalist id="caseTypeList">
-                <option value="Standard"></option>
-                <option value="Urgent"></option>
-                <option value="Small Site"></option>
-                <option value="Large Warehouse"></option>
-                <option value="Custom"></option>
-              </datalist>
-            </label>
-
-            <label>Phase
-              <select name="phase" data-setting="Phase"></select>
-            </label>
-
-            <label class="full">Task Name *
-              <input name="taskName" required placeholder="เช่น นัด Landlord ตรวจรับพื้นที่">
-            </label>
-
-            <label>Default Assignee
-              <input name="defaultAssignee" placeholder="ปล่อยว่างได้">
-            </label>
-
-            <label>Priority
-              <select name="priority" data-setting="Priority"></select>
-            </label>
-
-            <label>Default Status
-              <select name="defaultStatus" data-setting="Task Status"></select>
-            </label>
-
-            <label>Due Offset Days
-              <input type="number" name="dueOffset" value="7" min="0" placeholder="กี่วันหลังเริ่มปิดคลัง">
-            </label>
-
-            <label>Document Required
-              <select name="documentRequired" data-setting="Document Type"></select>
-            </label>
-
-            <label>Active
-              <select name="active">
-                <option value="TRUE">TRUE</option>
-                <option value="FALSE">FALSE</option>
-              </select>
-            </label>
-
-            <label class="full">Notes
-              <textarea name="notes" placeholder="คำอธิบาย / เงื่อนไขเฉพาะของ Template นี้"></textarea>
-            </label>
-          </div>
-
-          <button class="primary-btn wide" type="submit">บันทึก Checklist Template</button>
-        </form>
-      </section>
-
-      <section class="view" id="reportsView">
-        <div class="panel">
-          <div class="panel-head split">
-            <div><h3>รายงานอัตโนมัติ</h3><span>Copy ไปส่ง LINE / Email ได้ทันที</span></div>
-            <button class="primary-btn" id="copyReportBtn">Copy Report</button>
-          </div>
-          <pre id="dailyReport" class="report-box"></pre>
+          <div id="activityLog" class="act-log" style="margin-top:16px"></div>
         </div>
-      </section>
+      </div>
 
-      <section class="view" id="activityView">
-        <div class="panel">
-          <div class="panel-head"><h3>Activity Log</h3><span>บันทึกทุก action ของระบบ</span></div>
-          <div class="table-wrap"><table id="activityTable"></table></div>
-        </div>
-      </section>
-
-      <section class="view" id="trashView">
-        <div class="panel">
-          <div class="panel-head"><h3>ถังขยะ / Soft Delete</h3><span>ข้อมูลที่ลบจะถูกเก็บ snapshot ไว้</span></div>
-          <div class="table-wrap"><table id="trashTable"></table></div>
-        </div>
-      </section>
-
-      <section class="view" id="settingsView">
-        <div class="panel form-panel">
-          <div class="panel-head"><h3>ตั้งค่าเชื่อมต่อ</h3><span>ต้องใส่ Apps Script URL ที่ลงท้าย /exec</span></div>
-          <div class="form-grid">
-            <label>Spreadsheet ID<input id="sheetIdInput"></label>
-            <label>Apps Script URL<input id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec"></label>
-            <label>Default User<input id="defaultUserInput" placeholder="ชื่อผู้ใช้งาน"></label>
-            <label>Due soon days<input id="dueSoonDaysInput" type="number" value="3"></label>
-          </div>
-          <div class="button-row">
-            <button class="primary-btn" id="saveSettingsBtn">บันทึกการตั้งค่า</button>
-            <button class="ghost-btn" id="testApiBtn">ทดสอบ API</button>
-          </div>
-        </div>
-        <div class="panel settings-manager-panel">
-          <div class="panel-head split">
+      <!-- Tab: Trash -->
+      <div id="stab-trash" class="stab-content" style="display:none">
+        <div class="settings-card">
+          <div class="settings-card-icon-header">
+            <div class="sci-icon">🗑️</div>
             <div>
-              <h3>Settings จาก Sheet</h3>
-              <span>เพิ่ม/ลบตัวเลือก Dropdown ของระบบ เช่น สถานะงาน ความสำคัญ เฟสงาน ประเภทเอกสาร</span>
+              <h3 class="settings-card-title">ถังขยะ</h3>
+              <p class="settings-card-sub">รายการที่ถูกลบ — กู้คืนได้ภายใน 30 วัน</p>
             </div>
-            <span class="chip soft-chip">Editable Dropdown Center</span>
+            <button class="btn-ghost btn-sm" onclick="emptyTrash()" style="margin-left:auto;color:#ef4444">🗑️ ล้างถังขยะ</button>
           </div>
-
-          <div class="settings-control-grid">
-            <label>
-              หมวดที่ต้องการแก้ไข
-              <select id="settingCategorySelect"></select>
-            </label>
-            <label>
-              เพิ่มตัวเลือกใหม่
-              <input id="settingNewValueInput" placeholder="เช่น รอ Owner / สูงสุด / ใบแจ้งเลิกสัญญา">
-            </label>
-            <button class="primary-btn" id="addSettingOptionBtn" type="button">+ เพิ่มตัวเลือก</button>
-          </div>
-
-          <div class="settings-active-box">
-            <h4 id="settingActiveTitle">เลือกหมวด Settings</h4>
-            <p>รายการด้านล่างจะถูกใช้เป็น dropdown บนหน้าเว็บทันทีหลัง Refresh/Sync</p>
-            <div id="settingOptionList" class="setting-option-list"></div>
-          </div>
-
-          <div id="settingsGrid" class="settings-grid setting-category-grid"></div>
+          <div id="trashList" class="trash-list" style="margin-top:16px"></div>
         </div>
-      </section>
-    </main>
+      </div>
+
+    </section>
+
+  </main><!-- /main-content -->
+</div><!-- /appContainer -->
+
+
+<!-- ══════════════════════════════════
+     MODALS
+══════════════════════════════════ -->
+
+<!-- Modal Backdrop -->
+<div id="modalBackdrop" class="modal-backdrop hidden" onclick="closeModal()"></div>
+
+<!-- ── Add Warehouse Modal ── -->
+<div id="addWarehouseModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">🏢 เพิ่มคลังใหม่</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
   </div>
+  <form id="addWarehouseForm" onsubmit="submitWarehouse(event)">
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ชื่อคลัง <span class="req">*</span></label>
+          <input type="text" name="Warehouse Name" class="field-input" required />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Location / Zone</label>
+          <input type="text" name="Location / Zone" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบ</label>
+          <input type="text" name="Owner" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">เบอร์โทร</label>
+          <input type="text" name="Owner Phone" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">วันที่เริ่ม</label>
+          <input type="date" name="Start Date" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">กำหนดส่งมอบ</label>
+          <input type="date" name="Target Handover Date" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select name="Warehouse Status" class="field-input" id="whStatusSelectNew"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Link เอกสาร</label>
+          <input type="url" name="Document Folder Link" class="field-input" placeholder="https://..." />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="addWhBtn">บันทึก</button>
+    </div>
+  </form>
+</div>
 
-  <div class="toast" id="toast"></div>
-  <div class="modal hidden" id="modal"><div class="modal-card"><button class="modal-close" id="modalClose">×</button><div id="modalBody"></div></div></div>
+<!-- ── Edit Warehouse Modal ── -->
+<div id="editWarehouseModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">✏️ แก้ไขคลัง</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="editWarehouseForm" onsubmit="submitEditWarehouse(event)">
+    <input type="hidden" id="editWhId" name="Warehouse ID" />
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ชื่อคลัง <span class="req">*</span></label>
+          <input type="text" id="editWhName" name="Warehouse Name" class="field-input" required />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Location / Zone</label>
+          <input type="text" id="editWhZone" name="Location / Zone" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบ</label>
+          <input type="text" id="editWhOwner" name="Owner" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">เบอร์โทร</label>
+          <input type="text" id="editWhPhone" name="Owner Phone" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">วันที่เริ่ม</label>
+          <input type="date" id="editWhStart" name="Start Date" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">กำหนดส่งมอบ</label>
+          <input type="date" id="editWhHandover" name="Target Handover Date" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select id="editWhStatus" name="Warehouse Status" class="field-input"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Link เอกสาร</label>
+          <input type="url" id="editWhDocLink" name="Document Folder Link" class="field-input" placeholder="https://..." />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea id="editWhNotes" name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="editWhBtn">บันทึกการแก้ไข</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Add Task Modal ── -->
+<div id="addTaskModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">📋 เพิ่มงานใหม่</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="addTaskForm" onsubmit="submitTask(event)">
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">คลัง <span class="req">*</span></label>
+          <select name="Warehouse ID" class="field-input" id="taskWhSelectNew" required></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Phase</label>
+          <select name="Phase" class="field-input" id="taskPhaseSelectNew"></select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">ชื่องาน <span class="req">*</span></label>
+        <input type="text" name="Task Name" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบ</label>
+          <input type="text" name="Assignee" class="field-input" id="taskAssigneeNew" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Priority</label>
+          <select name="Priority" class="field-input" id="taskPrioritySelectNew"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select name="Status" class="field-input" id="taskStatusSelectNew"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Due Date</label>
+          <input type="date" name="Due Date" class="field-input" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Evidence Link</label>
+        <input type="url" name="Evidence Link" class="field-input" placeholder="https://..." />
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label checkbox-label">
+          <input type="checkbox" id="addToCalCheck" name="addToCalendar" />
+          <span>เพิ่มในปฏิทินด้วย</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="addTaskBtn">บันทึก</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Edit Task Modal ── -->
+<div id="editTaskModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">✏️ แก้ไขงาน</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="editTaskForm" onsubmit="submitEditTask(event)">
+    <input type="hidden" id="editTaskId" name="Task ID" />
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">คลัง</label>
+          <select name="Warehouse ID" class="field-input" id="editTaskWhSelect"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Phase</label>
+          <select name="Phase" class="field-input" id="editTaskPhaseSelect"></select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">ชื่องาน <span class="req">*</span></label>
+        <input type="text" id="editTaskName" name="Task Name" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบ</label>
+          <input type="text" id="editTaskAssignee" name="Assignee" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Priority</label>
+          <select id="editTaskPriority" name="Priority" class="field-input"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select id="editTaskStatus" name="Status" class="field-input"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Due Date</label>
+          <input type="date" id="editTaskDue" name="Due Date" class="field-input" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Evidence Link</label>
+        <input type="url" id="editTaskEvidence" name="Evidence Link" class="field-input" placeholder="https://..." />
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea id="editTaskNotes" name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="editTaskBtn">บันทึกการแก้ไข</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Add Document Modal ── -->
+<div id="addDocModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">📎 เพิ่มเอกสาร</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="addDocForm" onsubmit="submitDocument(event)">
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">คลัง <span class="req">*</span></label>
+          <select name="Warehouse ID" class="field-input" id="docWhSelectNew" required></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">งาน (ถ้ามี)</label>
+          <select name="Task ID" class="field-input" id="docTaskSelectNew">
+            <option value="">— ไม่ระบุ —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ประเภทเอกสาร <span class="req">*</span></label>
+          <select name="Document Type" class="field-input" id="docTypeSelectNew" required></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">สถานะเอกสาร</label>
+          <select name="Document Status" class="field-input" id="docStatusSelectNew"></select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">ชื่อเอกสาร <span class="req">*</span></label>
+        <input type="text" name="Document Name" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">File Link</label>
+          <input type="url" name="File Link" class="field-input" placeholder="https://..." />
+        </div>
+        <div class="field-group">
+          <label class="field-label">อัปโหลดโดย</label>
+          <input type="text" name="Uploaded By" class="field-input" id="docUploadedBy" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="addDocBtn">บันทึก</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Add Calendar Event Modal ── -->
+<div id="addCalEventModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">🗓️ เพิ่มกิจกรรม</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="addCalEventForm" onsubmit="submitCalendarEvent(event)">
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">คลัง</label>
+          <select name="Warehouse ID" class="field-input" id="calWhSelectNew"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">งาน (ถ้ามี)</label>
+          <select name="Task ID" class="field-input" id="calTaskSelectNew">
+            <option value="">— ไม่ระบุ —</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">ชื่อกิจกรรม <span class="req">*</span></label>
+        <input type="text" name="Event Title" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ประเภทกิจกรรม</label>
+          <select name="Event Type" class="field-input" id="calEventTypeNew"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select name="Calendar Status" class="field-input" id="calStatusNew"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">วันที่เริ่ม</label>
+          <input type="date" name="Start Date" class="field-input" id="calStartDateNew" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">วันที่สิ้นสุด / Due</label>
+          <input type="date" name="Due Date" class="field-input" id="calDueDateNew" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">เวลาเริ่ม (HH:MM)</label>
+          <input type="time" name="Start Time" class="field-input" id="calStartTimeNew" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">เวลาสิ้นสุด (HH:MM)</label>
+          <input type="time" name="End Time" class="field-input" id="calEndTimeNew" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบ</label>
+          <input type="text" name="Assignee" class="field-input" id="calAssigneeNew" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">แจ้งเตือนล่วงหน้า (วัน)</label>
+          <input type="number" name="Reminder Days" class="field-input" min="0" value="1" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="addCalBtn">บันทึก</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Edit Calendar Event Modal ── -->
+<div id="editCalEventModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">✏️ แก้ไขกิจกรรม</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="editCalEventForm" onsubmit="submitEditCalendarEvent(event)">
+    <input type="hidden" id="editCalEventId" name="Event ID" />
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">ชื่อกิจกรรม <span class="req">*</span></label>
+        <input type="text" id="editCalTitle" name="Event Title" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ประเภทกิจกรรม</label>
+          <select id="editCalType" name="Event Type" class="field-input"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select id="editCalStatus" name="Calendar Status" class="field-input"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">วันที่เริ่ม</label>
+          <input type="date" id="editCalStart" name="Start Date" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Due Date</label>
+          <input type="date" id="editCalDue" name="Due Date" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">เวลาเริ่ม (HH:MM)</label>
+          <input type="time" id="editCalStartTime" name="Start Time" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">เวลาสิ้นสุด (HH:MM)</label>
+          <input type="time" id="editCalEndTime" name="End Time" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบ</label>
+          <input type="text" id="editCalAssignee" name="Assignee" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">แจ้งเตือนล่วงหน้า (วัน)</label>
+          <input type="number" id="editCalReminder" name="Reminder Days" class="field-input" min="0" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea id="editCalNotes" name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="editCalBtn">บันทึกการแก้ไข</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Add Issue Modal ── -->
+<div id="addIssueModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">⚠️ เพิ่ม Issue</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="addIssueForm" onsubmit="submitIssue(event)">
+    <input type="hidden" id="issueWhId" name="Warehouse ID" />
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">ชื่อ Issue <span class="req">*</span></label>
+        <input type="text" name="Issue Title" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผลกระทบ</label>
+          <input type="text" name="Impact" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Priority</label>
+          <select name="Priority" class="field-input" id="issuePriorityNew"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">สถานะ</label>
+          <select name="Status" class="field-input" id="issueStatusNew"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Due Date</label>
+          <input type="date" name="Due Date" class="field-input" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">เจ้าของ</label>
+          <input type="text" name="Owner" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">งาน (ถ้ามี)</label>
+          <select name="Task ID" class="field-input" id="issueTaskNew">
+            <option value="">— ไม่ระบุ —</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">วิธีแก้ไข</label>
+        <textarea name="Solution" class="field-input" rows="2"></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary" id="addIssueBtn">บันทึก</button>
+    </div>
+  </form>
+</div>
+
+<!-- (addUserModal moved to bottom modals section) -->
+
+<!-- ── Add Checklist Template Modal ── -->
+<div id="addChecklistTemplateModal" class="modal hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">✅ เพิ่ม Checklist Template</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form id="addChecklistTemplateForm" onsubmit="submitChecklistTemplate(event)">
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">Phase <span class="req">*</span></label>
+          <select name="Phase" class="field-input" id="ctPhaseNew"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Case Type</label>
+          <input type="text" name="Case Type" class="field-input" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">ชื่องาน <span class="req">*</span></label>
+        <input type="text" name="Task Name" class="field-input" required />
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">ผู้รับผิดชอบเริ่มต้น</label>
+          <input type="text" name="Default Assignee" class="field-input" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Priority</label>
+          <select name="Priority" class="field-input" id="ctPriorityNew"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">Due Offset (วัน)</label>
+          <input type="number" name="Default Due Offset Days" class="field-input" min="0" value="0" />
+        </div>
+        <div class="field-group">
+          <label class="field-label checkbox-label">
+            <input type="checkbox" name="Document Required" id="ctDocReq" />
+            <span>ต้องการเอกสาร</span>
+          </label>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">หมายเหตุ</label>
+        <textarea name="Notes" class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary">บันทึก</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Quick Status Modal ── -->
+<div id="quickStatusModal" class="modal modal-sm hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">🔄 เปลี่ยนสถานะ</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body" id="quickStatusBody"></div>
+</div>
+
+<!-- ── Confirm Delete Modal ── -->
+<div id="confirmDeleteModal" class="modal modal-sm hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">🗑️ ยืนยันการลบ</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <p class="confirm-msg" id="confirmDeleteMsg">คุณต้องการลบรายการนี้ใช่หรือไม่?</p>
+    <div class="field-group">
+      <label class="field-label">เหตุผล (ถ้ามี)</label>
+      <input type="text" id="deleteReason" class="field-input" placeholder="ระบุเหตุผล..." />
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn-danger" id="confirmDeleteBtn" onclick="executeDelete()">ลบ</button>
+  </div>
+</div>
+
+<!-- ── Change Password Modal ── -->
+<div id="changePasswordModal" class="modal modal-sm hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">🔑 เปลี่ยนรหัสผ่าน</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form onsubmit="submitChangePassword(event)">
+    <div class="modal-body">
+      <div class="cpw-target-user" id="cpwTargetLabel"></div>
+      <input type="hidden" id="cpwTargetUsername" />
+      <div class="field-group">
+        <label class="field-label">รหัสผ่านใหม่</label>
+        <div class="pw-input-wrap">
+          <input type="password" id="cpwNew" class="field-input" placeholder="อย่างน้อย 4 ตัวอักษร" autocomplete="new-password" />
+          <button type="button" class="pw-toggle" onclick="togglePwVis('cpwNew',this)">👁️</button>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">ยืนยันรหัสผ่านใหม่</label>
+        <div class="pw-input-wrap">
+          <input type="password" id="cpwConfirm" class="field-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" autocomplete="new-password" />
+          <button type="button" class="pw-toggle" onclick="togglePwVis('cpwConfirm',this)">👁️</button>
+        </div>
+      </div>
+      <div class="cpw-error hidden" id="cpwError"></div>
+      <div class="cpw-strength" id="cpwStrength"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary">💾 บันทึก</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Add User Modal ── -->
+<div id="addUserModal" class="modal modal-sm hidden">
+  <div class="modal-header">
+    <h3 class="modal-title">➕ เพิ่มผู้ใช้งาน</h3>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <form onsubmit="submitAddUser(event)">
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label">ชื่อผู้ใช้</label>
+        <input type="text" id="newUsername" class="field-input" placeholder="ภาษาอังกฤษ ไม่มีช่องว่าง" autocomplete="off" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">รหัสผ่าน</label>
+        <div class="pw-input-wrap">
+          <input type="password" id="newUserPassword" class="field-input" placeholder="อย่างน้อย 4 ตัวอักษร" autocomplete="new-password" />
+          <button type="button" class="pw-toggle" onclick="togglePwVis('newUserPassword',this)">👁️</button>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">บทบาท</label>
+        <select id="newUserRole" class="field-input">
+          <option value="viewer">👁️ Viewer — ดูข้อมูลได้อย่างเดียว</option>
+          <option value="user" selected>👤 User — เพิ่ม/แก้ไขข้อมูล</option>
+          <option value="admin">👑 Admin — ควบคุมทุกอย่าง</option>
+        </select>
+      </div>
+      <div class="cpw-error hidden" id="addUserError"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button type="submit" class="btn-primary">➕ เพิ่มผู้ใช้</button>
+    </div>
+  </form>
+</div>
+
+<!-- ══════════════════════════════════
+     TOAST
+══════════════════════════════════ -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- ══════════════════════════════════
+     LOADING OVERLAY
+══════════════════════════════════ -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+  <div class="loading-spinner"></div>
+  <p class="loading-text" id="loadingText">กำลังโหลด...</p>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
