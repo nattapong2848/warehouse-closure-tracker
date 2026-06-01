@@ -17,6 +17,7 @@ const SHEETS = {
   Issues:              { id: 'Issue ID',      headers: ['Issue ID','Warehouse ID','Task ID','Issue Title','Impact','Owner','Status','Priority','Due Date','Solution','Created Date','Closed Date','Notes'] },
   Checklist_Templates: { id: 'Template ID',   headers: ['Template ID','Phase','Task Name','Default Assignee','Priority','Default Status','Default Due Offset Days','Document Required','Notes','Case Type','Active'] },
   Trash:               { id: 'Trash ID',      headers: ['Trash ID','Timestamp','Source Sheet','Record ID','Warehouse ID','Deleted By','Reason','Snapshot JSON'] },
+  Users:               { id: 'Username',      headers: ['Username','Password Hash','Role','Created At','Updated At','Active'] },
   Settings:            { id: '',              headers: ['Task Status','Priority','Warehouse Status','Phase','Document Type','Document Status','Event Type','Calendar Status'] }
 };
 
@@ -29,8 +30,10 @@ function doGet(e) {
 
   const action = e.parameter.action || 'ping';
   try {
-    if (action === 'ping')       return json({ success: true, message: 'pong', sheetId: _activeSheetId });
-    if (action === 'getAllData') return json({ success: true, data: getAllData() });
+    if (action === 'ping')           return json({ success: true, message: 'pong', sheetId: _activeSheetId });
+    if (action === 'getUsers')       return json({ success: true, users: getUsersData(), sheetId: _activeSheetId });
+    if (action === 'getAllData')      return json({ success: true, data: getAllData() });
+    if (action === 'getWarehouses')  return json({ success: true, data: getRows('Warehouses') });
     return json({ success: false, message: 'Unknown GET action: ' + action });
   } catch (err) {
     return json({ success: false, message: String(err) });
@@ -42,6 +45,7 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents || '{}');
     _activeSheetId = (body.sheetId && String(body.sheetId).trim()) ? String(body.sheetId).trim() : DEFAULT_SPREADSHEET_ID;
     const action = body.action;
+    if (action === 'getWarehouses')            return json({ success: true, data: getRows('Warehouses') });
     if (action === 'addWarehouse')             return json(addRecord('Warehouses', body));
     if (action === 'addTask')                  return json(addTask(body));
     if (action === 'addDocument')              return json(addRecord('Documents', body));
@@ -53,6 +57,7 @@ function doPost(e) {
     if (action === 'updateCalendarEvent')      return json(updateCalendarEvent(body));
     if (action === 'deleteRecord')             return json(deleteRecord(body));
     if (action === 'createChecklist')          return json(createChecklist(body));
+    if (action === 'saveUsers')                return json(saveUsersData(body));
     if (action === 'addSettingOption')         return json(addSettingOption(body));
     if (action === 'deleteSettingOption')      return json(deleteSettingOption(body));
     if (action === 'addChecklistTemplate')     return json(addChecklistTemplate(body));
@@ -239,21 +244,41 @@ function addTask(body) {
    UPDATE FUNCTIONS
 ────────────────────────────────────────────────────────────── */
 function updateStatus(data) {
-  const sh      = ensureSheet('Tasks');
-  const headers = SHEETS.Tasks.headers;
-  const row     = findRow('Tasks', 'Task ID', data.taskId);
-  if (!row) return { success: false, message: 'ไม่พบ Task ID: ' + data.taskId };
-  const statusCol      = headers.indexOf('Status') + 1;
-  const lastUpdatedCol = headers.indexOf('Last Updated') + 1;
-  const closedDateCol  = headers.indexOf('Closed Date') + 1;
-  const whCol          = headers.indexOf('Warehouse ID') + 1;
-  const oldStatus      = sh.getRange(row, statusCol).getValue();
-  sh.getRange(row, statusCol).setValue(data.status || oldStatus);
-  sh.getRange(row, lastUpdatedCol).setValue(new Date());
-  if (data.note) sh.getRange(row, headers.indexOf('Notes') + 1).setValue(data.note);
-  if (data.status === 'ปิดแล้ว') sh.getRange(row, closedDateCol).setValue(new Date());
-  const warehouseId = sh.getRange(row, whCol).getValue();
-  logActivity('UPDATE_STATUS', 'Tasks', data.taskId, warehouseId, data.user || 'System', oldStatus + ' -> ' + data.status);
+  // รองรับทั้ง field name: id, taskId, recordId
+  const recordId   = String(data.id || data.taskId || data.recordId || '').trim();
+  const sheetName  = data.sheet || 'Tasks';
+  const config     = SHEETS[sheetName];
+  if (!config) return { success: false, message: 'ไม่พบ sheet: ' + sheetName };
+  if (!recordId)  return { success: false, message: 'ไม่มี ID ในคำขอ' };
+
+  const sh      = ensureSheet(sheetName);
+  const headers  = config.headers;
+  const idField  = headers[0]; // คอลัมน์แรกเสมอ = ID
+  const row      = findRow(sheetName, idField, recordId);
+  if (!row) return { success: false, message: 'ไม่พบ ' + idField + ': ' + recordId };
+
+  const field          = data.field || 'Status';
+  const fieldCol       = headers.indexOf(field) + 1;
+  if (fieldCol < 1)    return { success: false, message: 'ไม่พบ field: ' + field };
+  const oldVal         = sh.getRange(row, fieldCol).getValue();
+  sh.getRange(row, fieldCol).setValue(data.status || data.value || oldVal);
+
+  const lastUpdIdx = headers.indexOf('Last Updated');
+  if (lastUpdIdx >= 0) sh.getRange(row, lastUpdIdx + 1).setValue(new Date());
+
+  const closedIdx  = headers.indexOf('Closed Date');
+  const closedStatuses = ['ปิดแล้ว', 'เสร็จสิ้น', 'ปิดงาน', 'Closed'];
+  if (closedIdx >= 0 && closedStatuses.includes(data.status || data.value || '')) {
+    sh.getRange(row, closedIdx + 1).setValue(new Date());
+  }
+
+  const whIdx = headers.indexOf('Warehouse ID');
+  const warehouseId = whIdx >= 0 ? sh.getRange(row, whIdx + 1).getValue() : '';
+  if (data.note) {
+    const noteIdx = headers.indexOf('Notes');
+    if (noteIdx >= 0) sh.getRange(row, noteIdx + 1).setValue(data.note);
+  }
+  logActivity('UPDATE_STATUS', sheetName, recordId, warehouseId, data.user || 'System', oldVal + ' -> ' + (data.status || data.value));
   return { success: true };
 }
 
@@ -487,6 +512,69 @@ function compactSettingsColumn(sh, col, dataStart, lastRow) {
   const values   = sh.getRange(dataStart, col, rowCount, 1).getDisplayValues().flat().filter(String);
   sh.getRange(dataStart, col, rowCount, 1).clearContent();
   if (values.length) sh.getRange(dataStart, col, values.length, 1).setValues(values.map(v => [v]));
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   USERS — เก็บผู้ใช้ลง Google Sheets เพื่อให้ Settings จำค่าแบบออนไลน์
+────────────────────────────────────────────────────────────── */
+function defaultUsersData() {
+  // simpleHash('admin') from the browser code = 92668751
+  return [{ username: 'admin', passwordHash: '92668751', role: 'admin' }];
+}
+
+function normalizeUsersData(arr) {
+  const clean = (Array.isArray(arr) ? arr : [])
+    .map(function(u) {
+      return {
+        username: String(u.username || u.Username || '').trim(),
+        passwordHash: String(u.passwordHash || u['Password Hash'] || '').trim(),
+        role: String(u.role || u.Role || 'user').trim() || 'user'
+      };
+    })
+    .filter(function(u) { return u.username && u.passwordHash; });
+
+  if (!clean.some(function(u) { return u.username === 'admin'; })) {
+    clean.unshift(defaultUsersData()[0]);
+  }
+  return clean;
+}
+
+function getUsersData() {
+  ensureSheet('Users');
+  let rows = getRows('Users');
+  if (!rows || rows.length === 0) {
+    saveUsersData({ users: defaultUsersData(), user: 'System' });
+    rows = getRows('Users');
+  }
+  return normalizeUsersData(rows.filter(function(r) {
+    return String(r.Active || 'TRUE').toUpperCase() !== 'FALSE';
+  }));
+}
+
+function saveUsersData(data) {
+  const users = normalizeUsersData(data.users || []);
+  const sh = ensureSheet('Users');
+  const headers = SHEETS.Users.headers;
+  const all = sh.getDataRange().getDisplayValues();
+  const hi = findHeaderRowIndex('Users', all);
+  const headerRow = hi + 1;       // 1-based
+  const dataStart = headerRow + 1;
+  const lastRow = sh.getLastRow();
+
+  if (lastRow >= dataStart) {
+    sh.getRange(dataStart, 1, lastRow - dataStart + 1, headers.length).clearContent();
+  }
+
+  const now = new Date();
+  const values = users.map(function(u) {
+    return [u.username, u.passwordHash, u.role, now, now, 'TRUE'];
+  });
+  if (values.length) {
+    sh.getRange(dataStart, 1, values.length, headers.length).setValues(values);
+  }
+  logActivity('SAVE_USERS', 'Users', 'ALL', '', data.user || 'System', 'Saved users: ' + users.length);
+  return { success: true, users: users };
 }
 
 /* ──────────────────────────────────────────────────────────────

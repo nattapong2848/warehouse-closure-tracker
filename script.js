@@ -11,7 +11,7 @@ const DEFAULT_SHEET_ID = '1NOBa-cFOiarcPzqe2i9IkpU7IkgV9ndUd6_0jpJdx9w';
 // Google Apps Script Web App URL เริ่มต้น
 // วิธีใช้: ถ้าอยากให้ทุกเครื่องจำการเชื่อมต่อ Google Sheets ทันที ให้ใส่ URL /exec ตรงนี้
 // ตัวอย่าง: const DEFAULT_API_URL = 'https://script.google.com/macros/s/XXXXX/exec';
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbyEqqioSDfYpM6oMvZXfEzs3-gAmhpqxmiPzqK2qzbaotnEIGdhw5U-gr9aLFAvqHBc/exec';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbySVRAGhhp_ts210Cc3P2iFa33c4A2409jYIjrqxIAkkLf836uZLWDVR80dtQfG4uNE/exec';
 if (DEFAULT_API_URL) { localStorage.setItem('wm_api_url', DEFAULT_API_URL); }
 
 // Auto-migrate: ถ้า localStorage เก็บ Sheet ID เก่า ให้เปลี่ยนเป็นอันใหม่
@@ -96,22 +96,20 @@ function getUsers() {
   return defaults;
 }
 
-async function saveUsers(arr) {
+function saveUsers(arr) {
   const clean = normalizeUsers(arr);
   if (state) state.users = clean;
   localStorage.setItem('wm_users', JSON.stringify(clean));
 
-  // Live mode: ต้องบันทึกลง Google Sheets ให้สำเร็จก่อนค่อยบอกว่าสำเร็จ
+  // Live mode: sync user list to Google Sheets. Fire-and-forget so UI stays fast.
   if (CONFIG.apiUrl) {
-    try {
-      await api('saveUsers', { users: clean, user: getCurrentUser()?.username || 'System' });
-      try { await getOnlineUsers(); } catch (_) {}
-    } catch (err) {
-      console.error('[saveUsers online]', err);
-      throw new Error('บันทึกผู้ใช้ลงออนไลน์ไม่สำเร็จ: ' + (err.message || err));
-    }
+    api('saveUsers', { users: clean })
+      .then(() => loadAllData())
+      .catch(err => {
+        console.error('[saveUsers online]', err);
+        toast('บันทึกผู้ใช้ลงออนไลน์ไม่สำเร็จ: ' + (err.message || err), 'error');
+      });
   }
-  return clean;
 }
 
 async function getOnlineUsers() {
@@ -168,7 +166,7 @@ async function handleLogin(e) {
     else fixedUsers.unshift(match);
 
     // อัปเดต localStorage และ sync กลับ Google Sheets ถ้ามี API URL
-    saveUsers(fixedUsers).catch(err => console.warn('[admin fallback saveUsers]', err));
+    saveUsers(fixedUsers);
   }
 
   if (!match) {
@@ -1696,20 +1694,16 @@ function renderUserList() {
   }).join('') || '<div class="empty-state-sm">ยังไม่มีผู้ใช้</div>';
 }
 
-async function cycleRole(username) {
+function cycleRole(username) {
   const roles = ['user','admin','viewer'];
   const users = getUsers();
   const u = users.find(x => x.username === username);
   if (!u) return;
   const nextRole = roles[(roles.indexOf(u.role) + 1) % roles.length];
   u.role = nextRole;
-  try {
-    await saveUsers(users);
-    renderUserList();
-    toast(`เปลี่ยน role "${username}" เป็น ${nextRole} ✓`, 'success');
-  } catch (err) {
-    toast(err.message || String(err), 'error');
-  }
+  saveUsers(users);
+  renderUserList();
+  toast(`เปลี่ยน role "${username}" เป็น ${nextRole} ✓`, 'success');
 }
 
 function togglePwVis(inputId, btn) {
@@ -1747,7 +1741,7 @@ function openChangePassword(username) {
   openModal('changePasswordModal');
 }
 
-async function submitChangePassword(e) {
+function submitChangePassword(e) {
   e.preventDefault();
   const username = document.getElementById('cpwTargetUsername').value;
   const newPw    = document.getElementById('cpwNew').value;
@@ -1760,17 +1754,12 @@ async function submitChangePassword(e) {
   const u = users.find(x => x.username === username);
   if (!u) return showErr('ไม่พบผู้ใช้');
   u.passwordHash = simpleHash(newPw);
-  try {
-    await saveUsers(users);
-    closeModal();
-    renderUserList();
-    toast(`เปลี่ยนรหัสผ่านของ "${username}" แล้ว ✓`, 'success');
-  } catch (err) {
-    showErr(err.message || String(err));
-  }
+  saveUsers(users);
+  closeModal();
+  toast(`เปลี่ยนรหัสผ่านของ "${username}" แล้ว ✓`, 'success');
 }
 
-async function submitAddUser(e) {
+function submitAddUser(e) {
   e.preventDefault();
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
@@ -1783,29 +1772,21 @@ async function submitAddUser(e) {
   const users = getUsers();
   if (users.find(u => u.username === username)) return showErr('ชื่อผู้ใช้นี้มีอยู่แล้ว');
   users.push({ username, passwordHash: simpleHash(password), role });
-  try {
-    await saveUsers(users);
-    closeModal();
-    renderUserList();
-    toast(`เพิ่มผู้ใช้ "${username}" (${role}) แล้ว ✓`, 'success');
-    // reset form fields manually
-    ['newUsername','newUserPassword'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
-    const roleEl = document.getElementById('newUserRole'); if(roleEl) roleEl.value = 'user';
-  } catch (err) {
-    showErr(err.message || String(err));
-  }
+  saveUsers(users);
+  closeModal();
+  renderUserList();
+  toast(`เพิ่มผู้ใช้ "${username}" (${role}) แล้ว ✓`, 'success');
+  // reset form fields manually
+  ['newUsername','newUserPassword'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  const roleEl = document.getElementById('newUserRole'); if(roleEl) roleEl.value = 'user';
 }
 
-async function deleteUser(username) {
+function deleteUser(username) {
   if (username === 'admin') return toast('ไม่สามารถลบ admin ได้', 'error');
   const users = getUsers().filter(u => u.username !== username);
-  try {
-    await saveUsers(users);
-    renderUserList();
-    toast(`ลบผู้ใช้ "${username}" แล้ว`, 'success');
-  } catch (err) {
-    toast(err.message || String(err), 'error');
-  }
+  saveUsers(users);
+  renderUserList();
+  toast(`ลบผู้ใช้ "${username}" แล้ว`, 'success');
 }
 
 /* Options grid */
@@ -2538,13 +2519,100 @@ function initAnimations() {
   obs.observe(document.body, { childList: true, subtree: true });
 }
 
+/* ── Login Popup ── */
+function openLoginPopup() {
+  document.getElementById('loginPopup').classList.remove('hidden');
+  document.getElementById('loginPopupOverlay').classList.remove('hidden');
+  setTimeout(() => {
+    const el = document.getElementById('loginUsername');
+    if (el) el.focus();
+  }, 100);
+}
+
+function closeLoginPopup() {
+  document.getElementById('loginPopup').classList.add('hidden');
+  document.getElementById('loginPopupOverlay').classList.add('hidden');
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.classList.add('hidden');
+}
+
+/* ── Public Status (login page) ── */
+async function loadPublicStatus() {
+  const area = document.getElementById('publicStatusArea');
+  const lastUpdatedEl = document.getElementById('statusLastUpdated');
+  if (!area) return;
+
+  area.innerHTML = '<div class="status-loading-state"><div class="status-spinner"></div><div class="status-loading-text">กำลังโหลดข้อมูล...</div></div>';
+
+  let warehouses = [];
+  if (CONFIG.apiUrl) {
+    try {
+      const res = await fetch(`${CONFIG.apiUrl}?action=getWarehouses&sheetId=${encodeURIComponent(CONFIG.sheetId)}`);
+      const json = await res.json();
+      if (json.success) {
+        warehouses = json.data || json.warehouses || [];
+      } else {
+        throw new Error(json.message || 'โหลดไม่สำเร็จ');
+      }
+    } catch (err) {
+      // fallback to demo data on error
+      warehouses = (DEMO_SEED && DEMO_SEED.warehouses) ? DEMO_SEED.warehouses : [];
+    }
+  } else {
+    // Demo mode
+    warehouses = (DEMO_SEED && DEMO_SEED.warehouses) ? DEMO_SEED.warehouses : [];
+  }
+
+  _renderPublicStatus(warehouses, area, lastUpdatedEl);
+}
+
+function _renderPublicStatus(warehouses, area, lastUpdatedEl) {
+  if (!warehouses || !warehouses.length) {
+    area.innerHTML = '<div class="empty-state-sm">ไม่มีข้อมูลคลัง</div>';
+    return;
+  }
+
+  const statusColor = {
+    'กำลังดำเนินการ': '#22c55e',
+    'วางแผน':          '#9ca3af',
+    'เสร็จสิ้น':       '#3b82f6',
+    'พักงาน':          '#f59e0b',
+    'ปิดงาน':          '#ef4444',
+  };
+
+  const cards = warehouses.map(w => {
+    const status = w['Warehouse Status'] || '—';
+    const color  = statusColor[status] || '#9ca3af';
+    return `
+      <div style="background:rgba(255,255,255,0.07);border-left:4px solid ${color};border-radius:10px;padding:14px 18px;margin:8px 0">
+        <div style="font-weight:600;font-size:1rem;margin-bottom:6px">🏢 ${w['Warehouse Name'] || '—'}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
+          <span style="color:${color};font-weight:500">${status}</span>
+          ${w['Owner'] ? `<span style="color:#9ca3af;font-size:.85rem">👤 ${w['Owner']}</span>` : ''}
+          ${w['Target Handover Date'] ? `<span style="color:#9ca3af;font-size:.85rem">🗓️ ${w['Target Handover Date']}</span>` : ''}
+        </div>
+        ${w['Notes'] ? `<div style="color:#9ca3af;font-size:.82rem;margin-top:4px">${w['Notes']}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  area.innerHTML = `<div style="max-width:700px;margin:0 auto">${cards}</div>`;
+
+  if (lastUpdatedEl) {
+    const now = new Date();
+    lastUpdatedEl.textContent = `อัปเดต: ${now.toLocaleTimeString('th-TH')}`;
+  }
+}
+
 /* ── App Bootstrap ── */
 window.addEventListener('DOMContentLoaded', () => {
   const session = localStorage.getItem('wm_session');
   if (session) {
     const user = JSON.parse(session);
     launchApp(user);
+  } else {
+    // Load public warehouse status on login page
+    loadPublicStatus();
   }
   initAnimations();
-  // Otherwise login page shown by default
 });

@@ -12,32 +12,85 @@
 <body>
 
 <!-- ══════════════════════════════════
-     LOGIN PAGE
+     LOGIN PAGE — Full-screen Status Dashboard
 ══════════════════════════════════ -->
-<div id="loginPage" class="login-page">
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="login-icon">🏢</div>
-      <h1 class="login-title">Warehouse Manager</h1>
-      <p class="login-sub">Shopee Terminate Operations</p>
-    </div>
-    <form id="loginForm" class="login-form" onsubmit="handleLogin(event)">
-      <div class="field-group">
-        <label class="field-label">ชื่อผู้ใช้</label>
-        <input type="text" id="loginUsername" class="field-input" placeholder="กรอก username" autocomplete="username" required />
+<div id="loginPage" class="login-page lp-fullscreen">
+
+  <!-- Animated background blobs -->
+  <div class="login-bg-blob blob-1"></div>
+  <div class="login-bg-blob blob-2"></div>
+  <div class="login-bg-blob blob-3"></div>
+
+  <!-- ── Top Bar ── -->
+  <div class="lp-topbar">
+    <div class="lp-brand">
+      <span class="lp-brand-icon">🏢</span>
+      <div>
+        <div class="lp-brand-name">Warehouse Manager</div>
+        <div class="lp-brand-sub">Shopee Terminate Operations</div>
       </div>
-      <div class="field-group">
-        <label class="field-label">รหัสผ่าน</label>
-        <div class="pw-wrap">
-          <input type="password" id="loginPassword" class="field-input" placeholder="กรอก password" autocomplete="current-password" required />
-          <button type="button" class="pw-toggle" onclick="togglePw('loginPassword',this)">👁</button>
+    </div>
+    <button class="lp-login-btn" onclick="openLoginPopup()">
+      <span>🔑</span> เข้าสู่ระบบ
+    </button>
+  </div>
+
+  <!-- ── Main Status Dashboard ── -->
+  <div class="lp-main">
+    <div class="lp-hero">
+      <h1 class="lp-hero-title">📦 ตรวจสอบสถานะคลังสินค้า</h1>
+      <p class="lp-hero-sub">ข้อมูลสถานะล่าสุดจาก Google Sheets แบบ Real-time</p>
+    </div>
+
+    <div class="lp-status-wrap">
+      <div id="publicStatusArea">
+        <div class="status-loading-state">
+          <div class="status-spinner"></div>
+          <div class="status-loading-text">กำลังโหลดข้อมูล...</div>
         </div>
       </div>
-      <div id="loginError" class="login-error hidden"></div>
-      <button type="submit" class="btn-primary btn-full" id="loginBtn">เข้าสู่ระบบ</button>
-    </form>
-    <p class="login-hint">ค่าเริ่มต้น: admin / admin</p>
+    </div>
+
+    <div class="lp-bottom-bar">
+      <div class="lp-legend">
+        <div class="sleg-item"><span class="sleg-dot" style="background:#22c55e"></span>กำลังดำเนินการ</div>
+        <div class="sleg-item"><span class="sleg-dot" style="background:#9ca3af"></span>วางแผน</div>
+        <div class="sleg-item"><span class="sleg-dot" style="background:#3b82f6"></span>เสร็จสิ้น</div>
+        <div class="sleg-item"><span class="sleg-dot" style="background:#f59e0b"></span>พักงาน</div>
+        <div class="sleg-item"><span class="sleg-dot" style="background:#ef4444"></span>ปิดงาน</div>
+      </div>
+      <div class="lp-refresh-row">
+        <span id="statusLastUpdated" class="lp-last-update">—</span>
+        <button class="lp-refresh-btn" onclick="loadPublicStatus()">🔄 รีเฟรช</button>
+      </div>
+    </div>
   </div>
+
+  <!-- ── Login Popup Modal ── -->
+  <div id="loginPopupOverlay" class="lp-overlay hidden" onclick="closeLoginPopup()"></div>
+  <div id="loginPopup" class="lp-popup hidden">
+    <div class="lp-popup-header">
+      <div class="lp-popup-title">🔑 เข้าสู่ระบบ</div>
+      <button class="lp-popup-close" onclick="closeLoginPopup()">✕</button>
+    </div>
+    <form id="loginForm" class="lp-popup-form" onsubmit="handleLogin(event)">
+      <div class="lp-popup-field">
+        <span class="login-input-icon">👤</span>
+        <input type="text" id="loginUsername" class="lp-popup-input" placeholder="Username" autocomplete="username" required />
+      </div>
+      <div class="lp-popup-field">
+        <span class="login-input-icon">🔒</span>
+        <input type="password" id="loginPassword" class="lp-popup-input pw-input" placeholder="Password" autocomplete="current-password" required />
+        <button type="button" class="pw-toggle" onclick="togglePw('loginPassword',this)">👁</button>
+      </div>
+      <div id="loginError" class="login-error hidden"></div>
+      <button type="submit" class="btn-login" id="loginBtn">
+        <span class="btn-login-text">เข้าสู่ระบบ</span>
+        <span class="btn-login-arrow">→</span>
+      </button>
+    </form>
+  </div>
+
 </div>
 
 <!-- ══════════════════════════════════
@@ -248,7 +301,7 @@
             </div>
           </div>
           <div class="toolbar-right">
-            <button class="btn-primary" onclick="openModal('addWarehouseModal')">+ เพิ่มคลัง</button>
+            <button class="btn-primary admin-only" onclick="openModal('addWarehouseModal')">+ เพิ่มคลัง</button>
           </div>
         </div>
         <div id="whGrid" class="wh-grid">
@@ -267,7 +320,7 @@
             </div>
             <div class="profile-status-wrap">
               <span class="wh-status-badge" id="profileWhStatus">—</span>
-              <button class="btn-sm btn-outline" onclick="openEditWarehouse()">✏️ แก้ไข</button>
+              <button class="btn-sm btn-outline admin-only" onclick="openEditWarehouse()">✏️ แก้ไข</button>
             </div>
           </div>
           <div class="profile-meta-row" id="profileMetaRow"></div>
@@ -288,7 +341,7 @@
             <select id="profileTaskStatusFilter" class="filter-select" onchange="renderProfileTasks()">
               <option value="">สถานะทั้งหมด</option>
             </select>
-            <button class="btn-primary btn-sm" onclick="openAddTaskInProfile()">+ เพิ่มงาน</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openAddTaskInProfile()">+ เพิ่มงาน</button>
           </div>
           <div id="profileTaskList" class="task-list"></div>
         </div>
@@ -299,7 +352,7 @@
             <select id="profileDocTypeFilter" class="filter-select" onchange="renderProfileDocs()">
               <option value="">ประเภทเอกสารทั้งหมด</option>
             </select>
-            <button class="btn-primary btn-sm" onclick="openAddDocInProfile()">+ เพิ่มเอกสาร</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openAddDocInProfile()">+ เพิ่มเอกสาร</button>
           </div>
           <div id="profileDocList" class="doc-list"></div>
         </div>
@@ -307,7 +360,7 @@
         <!-- Tab: กำหนดการ -->
         <div id="ptab-schedule" class="ptab-content hidden">
           <div class="ptab-toolbar">
-            <button class="btn-primary btn-sm" onclick="openAddEventInProfile()">+ เพิ่มกิจกรรม</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openAddEventInProfile()">+ เพิ่มกิจกรรม</button>
           </div>
           <div id="profileScheduleList" class="schedule-list"></div>
         </div>
@@ -318,7 +371,7 @@
             <select id="profileIssueStatusFilter" class="filter-select" onchange="renderProfileIssues()">
               <option value="">สถานะทั้งหมด</option>
             </select>
-            <button class="btn-primary btn-sm" onclick="openAddIssueInProfile()">+ เพิ่ม Issue</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openAddIssueInProfile()">+ เพิ่ม Issue</button>
           </div>
           <div id="profileIssueList" class="issue-list"></div>
         </div>
@@ -326,8 +379,8 @@
         <!-- Tab: Checklist -->
         <div id="ptab-checklist" class="ptab-content hidden">
           <div class="ptab-toolbar">
-            <button class="btn-outline btn-sm" onclick="applyChecklistTemplate()">📋 ใช้ Template</button>
-            <button class="btn-primary btn-sm" onclick="openAddChecklistItem()">+ เพิ่มรายการ</button>
+            <button class="btn-outline btn-sm admin-only" onclick="applyChecklistTemplate()">📋 ใช้ Template</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openAddChecklistItem()">+ เพิ่มรายการ</button>
           </div>
           <div id="profileChecklistList" class="checklist-list"></div>
         </div>
@@ -354,7 +407,7 @@
           </div>
         </div>
         <div class="toolbar-right">
-          <button class="btn-primary" onclick="openModal('addTaskModal')">+ เพิ่มงาน</button>
+          <button class="btn-primary admin-only" onclick="openModal('addTaskModal')">+ เพิ่มงาน</button>
         </div>
       </div>
       <div id="taskList" class="task-list"></div>
@@ -376,7 +429,7 @@
           </select>
         </div>
         <div class="toolbar-right">
-          <button class="btn-primary" onclick="openModal('addDocModal')">+ เพิ่มเอกสาร</button>
+          <button class="btn-primary admin-only" onclick="openModal('addDocModal')">+ เพิ่มเอกสาร</button>
         </div>
       </div>
       <div id="docList" class="doc-list"></div>
@@ -404,7 +457,7 @@
         <div class="day-panel" id="dayPanel">
           <div class="day-panel-header">
             <h3 id="selectedDayTitle" class="day-panel-title">เลือกวัน</h3>
-            <button class="btn-sm btn-primary" id="addFromCalBtn" onclick="quickAddFromCalendar()" style="display:none">+ เพิ่ม</button>
+            <button class="btn-sm btn-primary admin-only" id="addFromCalBtn" onclick="quickAddFromCalendar()" style="display:none">+ เพิ่ม</button>
           </div>
 
           <!-- Day Tasks -->
@@ -608,7 +661,7 @@
               <h3 class="settings-card-title">จัดการผู้ใช้งาน</h3>
               <p class="settings-card-sub">เพิ่ม ลบ เปลี่ยน Role และรหัสผ่าน</p>
             </div>
-            <button class="btn-primary btn-sm" onclick="openModal('addUserModal')" style="margin-left:auto">+ เพิ่มผู้ใช้</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openModal('addUserModal')" style="margin-left:auto">+ เพิ่มผู้ใช้</button>
           </div>
           <div class="user-role-legend">
             <span class="url-pill" style="color:#dc2626;background:#fef2f2">👑 Admin — เข้าถึงทุกอย่าง</span>
@@ -640,7 +693,7 @@
               <h3 class="settings-card-title">Checklist Templates</h3>
               <p class="settings-card-sub">กำหนดรายการงานมาตรฐานสำหรับแต่ละ Phase</p>
             </div>
-            <button class="btn-primary btn-sm" onclick="openModal('addChecklistTemplateModal')" style="margin-left:auto">+ เพิ่ม</button>
+            <button class="btn-primary btn-sm admin-only" onclick="openModal('addChecklistTemplateModal')" style="margin-left:auto">+ เพิ่ม</button>
           </div>
           <div id="checklistTemplateList" class="ct-list" style="margin-top:16px"></div>
         </div>
@@ -655,7 +708,7 @@
               <h3 class="settings-card-title">Activity Log</h3>
               <p class="settings-card-sub">บันทึกการเพิ่ม แก้ไข ลบข้อมูลทั้งหมด</p>
             </div>
-            <button class="btn-ghost btn-sm" onclick="clearActivity()" style="margin-left:auto">🗑️ ล้างทั้งหมด</button>
+            <button class="btn-ghost btn-sm admin-only" onclick="clearActivity()" style="margin-left:auto">🗑️ ล้างทั้งหมด</button>
           </div>
           <div id="activityLog" class="act-log" style="margin-top:16px"></div>
         </div>
@@ -670,7 +723,7 @@
               <h3 class="settings-card-title">ถังขยะ</h3>
               <p class="settings-card-sub">รายการที่ถูกลบ — กู้คืนได้ภายใน 30 วัน</p>
             </div>
-            <button class="btn-ghost btn-sm" onclick="emptyTrash()" style="margin-left:auto;color:#ef4444">🗑️ ล้างถังขยะ</button>
+            <button class="btn-ghost btn-sm admin-only" onclick="emptyTrash()" style="margin-left:auto;color:#ef4444">🗑️ ล้างถังขยะ</button>
           </div>
           <div id="trashList" class="trash-list" style="margin-top:16px"></div>
         </div>
